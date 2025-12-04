@@ -15,7 +15,7 @@ COMPANIES = [
     {"slug": "ramp", "ats": "ashby"},
     {"slug": "netflix", "ats": "lever"},
     {"slug": "square", "ats": "smartrecruiters"},
-    # {"slug": "nvidia", "ats": "workday"}, # Workday is complex, skipping for now
+    {"slug": "cvshealth", "ats": "workday"},
 ]
 
 
@@ -50,24 +50,30 @@ def main():
             continue
 
         print(f"Fetching {company_slug} ({ats_name})...")
-        jobs = fetcher.fetch_jobs(company_slug)
+        try:
+            jobs = fetcher.fetch_jobs(company_slug)
+        except Exception as e:
+            print(f"Error fetching {company_slug}: {e}")
+            continue
+            
         total_fetched = len(jobs)
 
         filtered_jobs = []
         for job in jobs:
             # Filter by title
-            if not title_matches(job['title']):
+            if not title_matches(job.get('title')):
                 continue
 
             # Parse location
-            loc_data = parse_location(job['location'])
+            loc_str = job.get('location', '')
+            loc_data = parse_location(loc_str)
 
             # Filter by location (US only)
             if not loc_data['is_us']:
                 continue
 
             # Deduplication
-            job_unique_id = f"{company_slug}_{job['req_id']}"
+            job_unique_id = f"{company_slug}_{job.get('req_id')}"
             if job_unique_id in seen_ids:
                 continue
             seen_ids.add(job_unique_id)
@@ -78,7 +84,7 @@ def main():
         for job in filtered_jobs:
             try:
                 print(
-                    f"{company_slug:<15} | {ats_name:<10} | {job['req_id']:<10} | {job['title'][:50]:<50} | {job['location'][:30]:<30} | {job['url']}")
+                    f"{company_slug:<15} | {ats_name:<10} | {job.get('req_id', 'N/A'):<10} | {job.get('title', 'N/A')[:50]:<50} | {job.get('location', 'N/A')[:30]:<30} | {job.get('url', 'N/A')}")
             except Exception:
                 pass
 
