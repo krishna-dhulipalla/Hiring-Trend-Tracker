@@ -1,5 +1,5 @@
 from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
-from src.utils import parse_location, title_matches
+from src.utils import parse_location, is_valid_job
 import sys
 import os
 
@@ -61,7 +61,7 @@ def main():
         filtered_jobs = []
         for job in jobs:
             # Filter by title
-            if not title_matches(job.get('title')):
+            if not is_valid_job(job.get('title')):
                 continue
 
             # Parse location

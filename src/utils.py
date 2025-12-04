@@ -1,5 +1,6 @@
 import re
-from src.config import TARGET_TITLES, EXCLUDE_TITLES
+import difflib
+from src.config import HARD_NEGATIVES, ABBREVIATIONS, ROLE_FAMILIES, SPECIAL_TOKENS
 
 def parse_location(location_name):
     """
@@ -65,25 +66,125 @@ def parse_location(location_name):
         "state": found_state
     }
 
-def title_matches(title):
+def normalize_title(title):
     """
-    Returns True if title matches TARGET_TITLES and does NOT match EXCLUDE_TITLES.
-    Uses word boundaries for robust matching.
+    Normalizes a job title:
+    1. Lowercase
+    2. Replace fancy dashes and extra punctuation
+    3. Tokenize
+    4. Expand abbreviations
+    5. Fuzzy correct special tokens
+    """
+    if not title:
+        return []
+
+    # 1. Lowercase
+    text = title.lower()
+
+    # 2. Replace fancy dashes and cleanup
+    text = text.replace('–', '-').replace('—', '-')
+    text = re.sub(r'[^\w\s-]', ' ', text) # Keep words, spaces, hyphens
+    
+    # 3. Tokenize (split by whitespace and hyphens)
+    tokens = re.split(r'[\s-]+', text)
+    tokens = [t for t in tokens if t] # Remove empty tokens
+
+    normalized_tokens = []
+    for token in tokens:
+        # 4. Expand abbreviations
+        if token in ABBREVIATIONS:
+            # If abbreviation expands to multiple words, add them all
+            expanded = ABBREVIATIONS[token].split()
+            normalized_tokens.extend(expanded)
+            continue
+
+        # 5. Fuzzy correction (optional, conservative)
+        # Check if token is close to a special token
+        # Only if token length > 3 to avoid short word noise
+        if len(token) > 3:
+            matches = difflib.get_close_matches(token, SPECIAL_TOKENS, n=1, cutoff=0.85)
+            if matches:
+                normalized_tokens.append(matches[0])
+                continue
+        
+        normalized_tokens.append(token)
+
+    return normalized_tokens
+
+def is_hard_negative(tokens):
+    """
+    Returns True if any token is a hard negative.
+    """
+    for token in tokens:
+        if token in HARD_NEGATIVES:
+            return True
+    return False
+
+def calculate_title_score(tokens):
+    """
+    Calculates a score for the title based on role families.
+    Returns (score, matched_family)
+    """
+    title_text = " ".join(tokens)
+    max_score = 0
+    best_family = None
+
+    for family, rules in ROLE_FAMILIES.items():
+        score = 0
+        
+        # Check strong phrases (+2)
+        for phrase in rules["strong_phrases"]:
+            if phrase in title_text:
+                score += 2
+                # If we match a strong phrase, we can probably stop or just take it
+        
+        # Check core keywords (+1 if present)
+        # We want at least one core keyword to consider it relevant if no strong phrase
+        has_core = False
+        for core in rules["core"]:
+            if core in title_text: # Simple substring check for multi-word cores
+                has_core = True
+                break
+        
+        if has_core:
+            score += 1
+
+        # Check roles (+1 if present AND has_core)
+        # e.g. "engineer" is good, but only if we have "data" or "ml"
+        has_role = False
+        for role in rules["roles"]:
+            if role in tokens:
+                has_role = True
+                break
+        
+        if has_core and has_role:
+            score += 1
+            
+        if score > max_score:
+            max_score = score
+            best_family = family
+
+    return max_score, best_family
+
+def is_valid_job(title):
+    """
+    Main entry point for filtering.
+    Returns True if the job title is valid/relevant.
     """
     if not title:
         return False
-        
-    title_lower = title.lower()
+
+    tokens = normalize_title(title)
     
-    # Check exclusions first
-    for exclude in EXCLUDE_TITLES:
-        # \b pattern \b
-        if re.search(r'\b' + re.escape(exclude) + r'\b', title_lower):
-            return False
-            
-    # Check inclusions
-    for target in TARGET_TITLES:
-        if re.search(r'\b' + re.escape(target) + r'\b', title_lower):
-            return True
-            
+    # 1. Hard negative filter
+    if is_hard_negative(tokens):
+        return False
+
+    # 2. Scoring
+    score, family = calculate_title_score(tokens)
+    
+    # Threshold: score >= 2 means it matched a strong phrase OR (core + role)
+    if score >= 2:
+        return True
+        
     return False

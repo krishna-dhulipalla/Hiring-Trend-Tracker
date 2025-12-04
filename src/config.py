@@ -1,32 +1,56 @@
-# Target roles to include (regex patterns or simple strings)
-TARGET_TITLES = [
-    # Core ML / AI / LLM
-    "machine learning engineer", "ml engineer", "ai engineer", "applied ai engineer",
-    "applied scientist", "research engineer", "ai platform engineer", "ai infra engineer",
-    "ml infra engineer", "ml ops", "mlops", "llm engineer", "generative ai engineer",
-    "ai automation engineer", "agent engineer", "autonomous agent engineer",
+# Hard negative keywords - instantly reject if these appear as whole words
+HARD_NEGATIVES = {
+    # Level/early-career noise
+    "intern", "internship", "co-op", "campus", "apprentice", "fellowship", "graduate", "grad",
     
-    # Backend / Systems / Infra
-    "software engineer", "backend engineer", "platform engineer", "infrastructure engineer",
-    "systems engineer", "distributed systems engineer", "cloud engineer",
-    "site reliability engineer", "sre", "reliability engineer", "devops engineer",
-    "data platform engineer", "api engineer", "storage engineer", "search engineer",
-    
-    # Data / Pipelines
-    "data engineer", "realtime data engineer", "streaming data engineer",
-    "analytics engineer", "etl engineer", "pipeline engineer",
-    
-    # Agentic / Automation
-    "automation engineer", "integration engineer", "workflow automation engineer",
-    "browser automation engineer", "rpa engineer"
-]
+    # Non-engineering functions
+    "recruiter", "recruiting", "talent", "hr", "sales", "marketing", "growth", 
+    "customer", "support", "operations", "finance", "accounting", "legal",
+    "business", "coordinator", "assistant", "manager", "head", "chief", "director", "vp", "principal"
+}
 
-# Roles to exclude
-EXCLUDE_TITLES = [
-    "intern", "internship", "co-op",
-    "recruiting", "hr", "finance", "accounting", "legal", "sales", "marketing",
-    "business development", "operations", "supply chain", "customer success",
-    "support", "office manager", "executive assistant",
-    "mechanical engineer", "electrical engineer", "hardware engineer", "robotics technician",
-    "manager", "director", "vp", "principal", "head of"
-]
+# Abbreviation / expansion map
+ABBREVIATIONS = {
+    "swe": "software engineer",
+    "sde": "software engineer",
+    "mle": "machine learning engineer",
+    "ml": "machine learning",
+    "ai": "artificial intelligence",
+    "ds": "data scientist",
+    "sre": "site reliability engineer",
+    "qa": "quality assurance",
+    "sdet": "software development engineer in test"
+}
+
+# Special tokens to protect from fuzzy matching (optional, for future use)
+SPECIAL_TOKENS = {
+    "learning", "engineer", "scientist", "platform", "backend", "frontend", "fullstack", "data"
+}
+
+# Role Families
+# Each family has:
+# - core: strong keywords that give high score
+# - roles: role descriptors (engineer, scientist, etc.)
+# - synonyms: specific phrases that map to this family
+ROLE_FAMILIES = {
+    "ml_ai": {
+        "core": ["machine learning", "artificial intelligence", "deep learning", "computer vision", "nlp", "generative ai", "llm"],
+        "roles": ["engineer", "scientist", "researcher", "applied scientist"],
+        "strong_phrases": ["machine learning engineer", "data scientist", "applied scientist", "ai engineer", "research engineer"]
+    },
+    "data": {
+        "core": ["data", "analytics", "pipeline", "etl"],
+        "roles": ["engineer", "platform", "infrastructure"],
+        "strong_phrases": ["data engineer", "analytics engineer", "data platform engineer"]
+    },
+    "swe_backend": {
+        "core": ["software", "backend", "frontend", "fullstack", "web", "distributed systems", "api"],
+        "roles": ["engineer", "developer"],
+        "strong_phrases": ["software engineer", "backend engineer", "platform engineer", "full stack engineer"]
+    },
+    "infra_devops": {
+        "core": ["infrastructure", "devops", "site reliability", "cloud", "platform", "reliability"],
+        "roles": ["engineer"],
+        "strong_phrases": ["site reliability engineer", "devops engineer", "infrastructure engineer", "platform engineer"]
+    }
+}

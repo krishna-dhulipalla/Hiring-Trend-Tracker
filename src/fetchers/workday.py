@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any
-from src.utils import parse_location, title_matches
+from src.utils import parse_location
 
 class WorkdayAgent:
     def __init__(self):
@@ -92,11 +92,10 @@ class WorkdayAgent:
                     
                     all_raw_jobs.extend(job_postings)
                     
-                    # Normalize and filter immediately
+                    # Normalize immediately
                     for job in job_postings:
                         normalized = self.normalize_job(job, company)
-                        if title_matches(normalized["title"]):
-                            normalized_jobs.append(normalized)
+                        normalized_jobs.append(normalized)
 
                     print(f"[{company['company_slug']}] Fetched {len(job_postings)} jobs (Offset: {offset}, Total: {total_jobs})")
 
