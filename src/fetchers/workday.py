@@ -32,26 +32,42 @@ class WorkdayAgent:
         tenant = company_config["tenant"]
         site_slug = company_config["site_slug"]
         
-        # Construct full URL
-        external_path = raw_job.get("externalPath", "")
-        job_url = f"https://{host}/en-US/{tenant}/{site_slug}{external_path}"
+        # Handle flat structure (e.g. CVS Health)
+        if not job_info:
+            title = raw_job.get("title")
+            external_path = raw_job.get("externalPath", "")
+            job_url = f"https://{host}/en-US/{tenant}/{site_slug}{external_path}"
+            location_raw = raw_job.get("locationsText", "")
+            posted_at = raw_job.get("postedOn")
+            
+            # Req ID might be in bulletFields
+            req_id = None
+            if "bulletFields" in raw_job and raw_job["bulletFields"]:
+                req_id = raw_job["bulletFields"][0]
+            
+            all_locations = [location_raw]
+        else:
+            # Standard structure
+            title = job_info.get("title")
+            external_path = raw_job.get("externalPath", "")
+            job_url = f"https://{host}/en-US/{tenant}/{site_slug}{external_path}"
+            location_raw = job_info.get("location", "")
+            additional_locations = job_info.get("additionalLocations", [])
+            all_locations = [location_raw] + additional_locations
+            req_id = job_info.get("jobReqId")
+            posted_at = job_info.get("postedDate")
 
-        # Locations
-        location_raw = job_info.get("location", "")
-        additional_locations = job_info.get("additionalLocations", [])
-        all_locations = [location_raw] + additional_locations
-        
-        # Parse the primary location (or iterate if you want to support multiple)
+        # Parse the primary location
         parsed_loc = parse_location(location_raw)
 
         return {
             "source_ats": "workday",
             "company_slug": company_config["company_slug"],
-            "req_id": job_info.get("jobReqId"),
-            "title": job_info.get("title"),
+            "req_id": req_id,
+            "title": title,
             "locations": all_locations,
             "url": job_url,
-            "posted_at": job_info.get("postedDate"),
+            "posted_at": posted_at,
             "location_parsed": parsed_loc,
             "raw": raw_job
         }
@@ -97,7 +113,11 @@ class WorkdayAgent:
                         normalized = self.normalize_job(job, company)
                         normalized_jobs.append(normalized)
 
-                    print(f"[{company['company_slug']}] Fetched {len(job_postings)} jobs (Offset: {offset}, Total: {total_jobs})")
+                    # Log progress every 5 pages or if it's the last page
+                    is_last_page = (offset + limit >= total_jobs)
+                    page_num = (offset // limit) + 1
+                    if page_num % 5 == 0 or is_last_page:
+                        print(f"[{company['company_slug']}] Fetched {len(job_postings)} jobs (Offset: {offset}, Total: {total_jobs})")
 
                     if offset + limit >= total_jobs:
                         break

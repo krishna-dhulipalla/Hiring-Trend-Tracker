@@ -1,25 +1,43 @@
-from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
-from src.utils import parse_location, is_valid_job
-import sys
 import os
+import json
+import logging
+import datetime
+from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
+from src.utils import is_valid_job
 
-# Ensure src is in path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+def setup_logging(run_timestamp):
+    """Sets up logging for the current run."""
+    log_dir = os.path.join("logs", run_timestamp)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    success_log = os.path.join(log_dir, "success.log")
+    failure_log = os.path.join(log_dir, "failure.log")
+    
+    # Create distinct loggers
+    success_logger = logging.getLogger('success')
+    success_logger.setLevel(logging.INFO)
+    success_handler = logging.FileHandler(success_log, mode='w', encoding='utf-8')
+    success_handler.setFormatter(logging.Formatter('%(message)s'))
+    success_logger.addHandler(success_handler)
+    
+    failure_logger = logging.getLogger('failure')
+    failure_logger.setLevel(logging.ERROR)
+    failure_handler = logging.FileHandler(failure_log, mode='w', encoding='utf-8')
+    failure_handler.setFormatter(logging.Formatter('%(message)s'))
+    failure_logger.addHandler(failure_handler)
+    
+    # Console logger for general progress
+    console_logger = logging.getLogger('console')
+    console_logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    console_logger.addHandler(console_handler)
 
-
-# Configuration of companies and their ATS
-COMPANIES = [
-    {"slug": "figma", "ats": "greenhouse"},
-    {"slug": "gusto", "ats": "greenhouse"},
-    {"slug": "linear", "ats": "ashby"},
-    {"slug": "ramp", "ats": "ashby"},
-    {"slug": "netflix", "ats": "lever"},
-    {"slug": "square", "ats": "smartrecruiters"},
-    {"slug": "cvshealth", "ats": "workday"},
-]
-
+    return success_logger, failure_logger, console_logger
 
 def get_fetcher(ats_name):
+    """Returns the fetcher module based on ATS name."""
     if ats_name == "greenhouse":
         return greenhouse
     elif ats_name == "lever":
@@ -31,63 +49,81 @@ def get_fetcher(ats_name):
     elif ats_name == "workday":
         return workday
     else:
-        return None
+        raise ValueError(f"Unknown ATS: {ats_name}")
 
+def save_json(data, filepath):
+    """Saves data to a JSON file."""
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def load_companies():
+    """Loads companies from src/companies.json."""
+    companies_path = os.path.join(os.path.dirname(__file__), "companies.json")
+    with open(companies_path, 'r') as f:
+        return json.load(f)
 
 def main():
-    print(f"{'COMPANY':<15} | {'ATS':<10} | {'REQ_ID':<10} | {'TITLE':<50} | {'LOCATION':<30} | {'URL'}")
-    print("-" * 180)
+    # 1. Compute run timestamp
+    # Format: 2025-12-04T19-00-00Z
+    run_timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%SZ")
+    
+    # 2. Setup logging
+    success_logger, failure_logger, console_logger = setup_logging(run_timestamp)
+    console_logger.info(f"Starting run at {run_timestamp}")
 
-    seen_ids = set()
+    # 3. Load companies
+    try:
+        companies = load_companies()
+    except Exception as e:
+        console_logger.error(f"Failed to load companies.json: {e}")
+        return
 
-    for company_info in COMPANIES:
-        company_slug = company_info["slug"]
-        ats_name = company_info["ats"]
-
-        fetcher = get_fetcher(ats_name)
-        if not fetcher:
-            print(f"Unknown ATS '{ats_name}' for {company_slug}")
-            continue
-
-        print(f"Fetching {company_slug} ({ats_name})...")
+    # 4. Loop over companies
+    for company in companies:
+        slug = company["slug"]
+        ats = company["ats"]
+        
         try:
-            jobs = fetcher.fetch_jobs(company_slug)
-        except Exception as e:
-            print(f"Error fetching {company_slug}: {e}")
-            continue
+            fetcher = get_fetcher(ats)
             
-        total_fetched = len(jobs)
+            # Fetch data
+            raw_jobs = fetcher.fetch_jobs(slug)
 
-        filtered_jobs = []
-        for job in jobs:
-            # Filter by title
-            if not is_valid_job(job.get('title')):
-                continue
+            # Normalize data (needed for filtering)
+            if hasattr(fetcher, 'normalize_job'):
+                normalized_jobs = [fetcher.normalize_job(job) for job in raw_jobs]
+            else:
+                normalized_jobs = raw_jobs
 
-            # Parse location
-            loc_str = job.get('location', '')
-            loc_data = parse_location(loc_str)
+            # Filter jobs
+            filtered_jobs = [job for job in normalized_jobs if is_valid_job(job.get('title'))]
 
-            # Filter by location (US only)
-            if not loc_data['is_us']:
-                continue
+            # Write files
+            # Raw data
+            raw_path = f"data/raw/{ats}/{slug}/{run_timestamp}.json"
+            save_json(raw_jobs, raw_path)
+            
+            # Filtered data
+            filtered_path = f"data/filtered/{ats}/{slug}/{run_timestamp}.json"
+            save_json(filtered_jobs, filtered_path)
+            
+            # Log success
+            msg = f"{slug} - {ats} - {len(raw_jobs)} raw, {len(filtered_jobs)} filtered"
+            success_logger.info(msg)
+            console_logger.info(f"OK {msg}")
 
-            # Deduplication
-            job_unique_id = f"{company_slug}_{job.get('req_id')}"
-            if job_unique_id in seen_ids:
-                continue
-            seen_ids.add(job_unique_id)
-
-            filtered_jobs.append(job)
-
-        print(f"{company_slug} ({ats_name}) summary: fetched {total_fetched}, after filters {len(filtered_jobs)}")
-        for job in filtered_jobs:
-            try:
-                print(
-                    f"{company_slug:<15} | {ats_name:<10} | {job.get('req_id', 'N/A'):<10} | {job.get('title', 'N/A')[:50]:<50} | {job.get('location', 'N/A')[:30]:<30} | {job.get('url', 'N/A')}")
-            except Exception:
-                pass
-
+        except Exception as e:
+            # Write error marker with full stack trace
+            error_path = f"data/raw/{ats}/{slug}/{run_timestamp}_ERROR.txt"
+            os.makedirs(os.path.dirname(error_path), exist_ok=True)
+            with open(error_path, 'w', encoding='utf-8') as f:
+                f.write(str(e))
+            
+            # Log failure
+            msg = f"{slug} - {ats} -> {error_path}"
+            failure_logger.error(msg)
+            console_logger.error(f"ERROR {msg}")
 
 if __name__ == "__main__":
     main()
