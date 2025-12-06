@@ -4,6 +4,30 @@ from datetime import datetime, timedelta
 import dateutil.parser
 from src.config import HARD_NEGATIVES, ABBREVIATIONS, ROLE_FAMILIES, SPECIAL_TOKENS
 
+
+# ---------------------------------------------------------------------------
+# Constants for Location Parsing
+# ---------------------------------------------------------------------------
+
+US_CITIES_WEAK = {
+    "san jose", "seattle", "austin", "new york", "boston", "dallas", 
+    "san francisco", "los angeles", "chicago", "atlanta", "denver",
+    "palo alto", "mountain view", "sunnyvale", "redmond", "menlo park"
+}
+
+NON_US_REGIONS = {
+    "europe", "emea", "apac", "latam", "canada", "india", "singapore", 
+    "spain", "poland", "germany", "france", "australia", "uk", "united kingdom",
+    "london", "toronto", "vancouver", "montreal", "berlin", "munich", 
+    "paris", "bangalore", "bengaluru", "pune", "hyderabad", "delhi", "mumbai",
+    "china", "japan", "tokyo", "beijing", "shanghai", "ireland", "dublin",
+    "netherlands", "amsterdam", "sweden", "stockholm", "switzerland", "zurich"
+}
+
+# ---------------------------------------------------------------------------
+# Location Parsing Logic
+# ---------------------------------------------------------------------------
+
 def parse_location(location_name):
     """
     Parses a location string into a structured dictionary.
@@ -16,100 +40,89 @@ def parse_location(location_name):
             "state": None, 
             "country_code": None, 
             "is_us": False, 
-            "is_remote": False
+            "is_remote": False,
+            "has_non_us_marker": False
         }
 
-    loc_lower = location_name.lower()
+    loc_lower = location_name.lower().strip()
     
-    # Remote detection
+    # 1. Check for Non-US Markers immediately
+    has_non_us_marker = False
+    for marker in NON_US_REGIONS:
+        # Check for whole words or word boundaries to avoid partial matches like "spain" in "splaining"
+        if re.search(r'\b' + re.escape(marker) + r'\b', loc_lower):
+            has_non_us_marker = True
+            break
+            
+    # Also check ISO prefixes (CA-, IN-, FR-, etc.) excluding US-
+    if re.search(r'\b(ca|in|fr|de|pl|gb|uk|au|br|cn|jp)-', loc_lower):
+        has_non_us_marker = True
+
+    # 2. Remote detection
     is_remote = "remote" in loc_lower
     
-    # US Detection - Strict Rules
+    # 3. US Detection - Strict Rules
     is_us = False
     
-    # 1. Explicit US Country Name
-    if any(x in loc_lower for x in ["united states", "usa", "u.s."]):
+    # Rule A: Explicit US Country Name
+    if any(x in loc_lower for x in ["united states", "usa", "u.s."]) or re.search(r'\b(us)\b', loc_lower):
         is_us = True
         
-    # 2. ISO Prefix US-
-    if "us-" in loc_lower: # e.g. "US-CA-San Francisco"
+    # Rule B: US- Prefix
+    if "us-" in loc_lower: 
         is_us = True
 
-    # 3. State Codes with delimiters (e.g. ", CA", " TX ")
-    # NOT just "CA" which could be Canada or "Call"
-    us_state_codes = [
-        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
-        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
-        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
-        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
-        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
-        "DC"
-    ]
-    
+    # Rule C: State Codes
     if not is_us:
+        # Standard US State codes
+        us_state_codes = [
+            "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
+            "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+            "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+            "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+            "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+            "DC"
+        ]
         for code in us_state_codes:
-            # Match ", CA", " CA ", ",CA" (end of string), " CA" (end of string)
-            # Regex: (?:^|[,\s])CODE(?:[,\s]|$)
-            # But "CA-" is explicit non-US usually if it's CA-ON (Canada-Ontario)
-            # However some systems use US-CA.
-            # Let's match ", CA" or " CA " specifically as typically seen in "City, ST"
+            # Match ", CA", " CA ", ",CA"
             if re.search(r'[\s,]{}\b'.format(code), location_name): 
                  is_us = True
                  break
 
-    # 4. Full State Names
-    full_state_names = [
-        "alabama", "alaska", "arizona", "arkansas", "california", "colorado", 
-        "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho", 
-        "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", 
-        "maine", "maryland", "massachusetts", "michigan", "minnesota", 
-        "mississippi", "missouri", "montana", "nebraska", "nevada", 
-        "new hampshire", "new jersey", "new mexico", "new york", 
-        "north carolina", "north dakota", "ohio", "oklahoma", "oregon", 
-        "pennsylvania", "rhode island", "south carolina", "south dakota", 
-        "tennessee", "texas", "utah", "vermont", "virginia", "washington", 
-        "west virginia", "wisconsin", "wyoming", "district of columbia"
-    ]
-    
+    # Rule D: Full State Names
     if not is_us:
+        full_state_names = [
+            "alabama", "alaska", "arizona", "arkansas", "california", "colorado", 
+            "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho", 
+            "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", 
+            "maine", "maryland", "massachusetts", "michigan", "minnesota", 
+            "mississippi", "missouri", "montana", "nebraska", "nevada", 
+            "new hampshire", "new jersey", "new mexico", "new york", 
+            "north carolina", "north dakota", "ohio", "oklahoma", "oregon", 
+            "pennsylvania", "rhode island", "south carolina", "south dakota", 
+            "tennessee", "texas", "utah", "vermont", "virginia", "washington", 
+            "west virginia", "wisconsin", "wyoming", "district of columbia"
+        ]
         for state in full_state_names:
             if state in loc_lower:
                 is_us = True
                 break
+                
+    # Rule E: Weak US Cities (only if no non-US marker)
+    if not is_us and not has_non_us_marker:
+        for city in US_CITIES_WEAK:
+            if city in loc_lower:
+                is_us = True
+                break
     
-    # Non-US Overrides / Explicit Non-US indicators
-    # ISO prefixes like CA-, FR-, DE-, IN-, PL- (excluding US-)
-    if re.search(r'\b[a-z]{2}-', loc_lower):
-        if not loc_lower.startswith("us-"):
-             # It might be CA-ON (Canada), but check if it's just a weird format
-             # Assume NON-US if we see XX- formatted prefix that isn't US-
-             # Actually, "CA-" could be California if "US-CA-..." but typically "CA-ON" is Canada
-             # Let's check strict non-US keywords
-             pass
-
-    non_us_keywords = [
-        "canada", "france", "germany", "india", "poland", "uk", "united kingdom", 
-        "london", "toronto", "vancouver", "montreal", "berlin", "munich", 
-        "paris", "bangalore", "pune", "hyderabad", "delhi", "mumbai"
-    ]
-    
-    for kw in non_us_keywords:
-        if kw in loc_lower:
-            is_us = False
-            break
-            
-    # ISO Prefix strict check for non-US
-    # e.g. "CA-ON" -> Canada
-    if re.match(r'^(ca|in|fr|de|pl|gb|uk)-', loc_lower):
-        is_us = False
-
     return {
         "raw": location_name,
-        "city": None, # Parsing city/state specifically is hard without a db, leaving None for now or could approximate
+        "city": None,
         "state": None,
         "country_code": "US" if is_us else None,
         "is_us": is_us,
-        "is_remote": is_remote
+        "is_remote": is_remote,
+        "has_non_us_marker": has_non_us_marker
     }
 
 def parse_posted_at(date_string):
@@ -170,7 +183,31 @@ def parse_posted_at(date_string):
         return None
 
 
+
+def is_us_eligible(job):
+    """
+    Returns True if the job is considered US-eligible.
+    Criteria: 
+    1. Any location has is_us == True.
+    2. OR (is_remote == True AND no non-US region word in that location text).
+    """
+    locations = job.get("locations", [])
+    if not locations:
+        return False
+        
+    for loc in locations:
+        # 1. Explicit US
+        if loc.get("is_us"):
+            return True
+            
+        # 2. Remote + No Non-US marker
+        if loc.get("is_remote") and not loc.get("has_non_us_marker"):
+            return True
+            
+    return False
+
 def normalize_title(title):
+
     """
     Normalizes a job title:
     1. Lowercase

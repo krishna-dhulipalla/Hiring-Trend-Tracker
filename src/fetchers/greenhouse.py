@@ -23,8 +23,22 @@ def normalize_job(job):
     """
     # Location handling
     # Greenhouse provides 'location': {'name': '...'}
-    loc_str = job.get("location", {}).get("name")
-    location_obj = parse_location(loc_str)
+    # And often 'offices': [{'name': '...'}, ...]
+    
+    all_loc_strings = []
+    
+    primary_loc = job.get("location", {}).get("name")
+    if primary_loc:
+        all_loc_strings.append(primary_loc)
+        
+    offices = job.get("offices", [])
+    for office in offices:
+        name = office.get("name")
+        if name and name not in all_loc_strings:
+            all_loc_strings.append(name)
+            
+    parsed_locations = [parse_location(l) for l in all_loc_strings]
+    # location_obj = parse_location(loc_str) # Deleted variable usage
     
     # Date handling
     # created_at or updated_at
@@ -39,8 +53,8 @@ def normalize_job(job):
         "req_id": str(job.get("internal_job_id") or job.get("id")),
         "title": job.get("title"),
         "url": job.get("absolute_url"),
-        "locations": [location_obj],
-        "location_display": loc_str,
+        "locations": parsed_locations,
+        "location_display": primary_loc,
         "posted_at": posted_at,
         "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z", # Current crawl time
         "last_seen_at": datetime.datetime.utcnow().isoformat() + "Z",

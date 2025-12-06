@@ -3,7 +3,7 @@ import json
 import logging
 import datetime
 from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
-from src.utils import is_valid_job
+from src.utils import is_valid_job, is_us_eligible
 
 def setup_logging(run_timestamp):
     """Sets up logging for the current run."""
@@ -97,7 +97,10 @@ def main():
                 normalized_jobs = raw_jobs
 
             # Filter jobs
-            filtered_jobs = [job for job in normalized_jobs if is_valid_job(job.get('title'))]
+            filtered_jobs = [
+                job for job in normalized_jobs 
+                if is_valid_job(job.get('title')) and is_us_eligible(job)
+            ]
 
             # Write files
             # Raw data

@@ -28,13 +28,26 @@ def normalize_job(job):
     # We normalized earlier to just 'location' string in old code. 
     # Let's check typical response. Often has 'location' key directly.
     loc_str = job.get("location")
-    if not loc_str and "secondaryLocations" in job:
-        # Fallback
-        secs = job.get("secondaryLocations", [])
-        if secs:
-            loc_str = secs[0].get("location")
+    secondary = job.get("secondaryLocations", [])
+    
+    all_locs = []
+    if loc_str:
+        all_locs.append(loc_str)
+        
+    for sec in secondary:
+        # secondaryLocations is usually a list of objects with 'location'
+        s_loc = sec.get("location")
+        if s_loc and s_loc not in all_locs:
+            all_locs.append(s_loc)
             
-    location_obj = parse_location(loc_str)
+    parsed_locations = [parse_location(l) for l in all_locs]
+    # If no locations, at least store the raw string if we failed to parse anything useful?
+    # No, existing logic just passes empty list if empty.
+    
+    location_obj = parsed_locations[0] if parsed_locations else parse_location(None)
+    # But we want to return the LIST of parsed locations.
+    # The previous code returned "locations": [location_obj]
+    # We will return "locations": parsed_locations
     
     # Date
     # publishedAt or createdAt
@@ -48,7 +61,7 @@ def normalize_job(job):
         "req_id": str(job.get("id")),
         "title": job.get("title"),
         "url": job.get("jobUrl"),
-        "locations": [location_obj],
+        "locations": parsed_locations,
         "location_display": loc_str,
         "posted_at": posted_at,
         "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z",

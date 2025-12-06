@@ -19,7 +19,12 @@ ABBREVIATIONS = {
     "ds": "data scientist",
     "sre": "site reliability engineer",
     "qa": "quality assurance",
-    "sdet": "software development engineer in test"
+    "sdet": "software development engineer in test",
+    "cv": "computer vision",
+    "rl": "reinforcement learning",
+    "llm": "llm",
+    "mlops": "ml ops",
+    "r&d": "research"
 }
 
 # Special tokens to protect from fuzzy matching (optional, for future use)
@@ -34,9 +39,18 @@ SPECIAL_TOKENS = {
 # - synonyms: specific phrases that map to this family
 ROLE_FAMILIES = {
     "ml_ai": {
-        "core": ["machine learning", "artificial intelligence", "deep learning", "computer vision", "nlp", "generative ai", "llm"],
+        "core": [
+            "machine learning", "artificial intelligence", "deep learning", "computer vision", "nlp", 
+            "generative ai", "llm", "model", "foundation model", "gen ai", "genai", "multimodal", 
+            "rl", "reinforcement learning", "cv"
+        ],
         "roles": ["engineer", "scientist", "researcher", "applied scientist"],
-        "strong_phrases": ["machine learning engineer", "data scientist", "applied scientist", "ai engineer", "research engineer"]
+        "strong_phrases": [
+            "machine learning engineer", "data scientist", "applied scientist", "ai engineer", 
+            "research engineer", "research scientist", "ml scientist", "applied ml scientist", 
+            "ml ops engineer", "ml platform engineer", "gen ai engineer", "llm engineer", 
+            "founding engineer"
+        ]
     },
     "data": {
         "core": ["data", "analytics", "pipeline", "etl"],

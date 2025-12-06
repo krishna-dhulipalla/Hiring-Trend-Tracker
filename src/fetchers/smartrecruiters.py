@@ -27,11 +27,20 @@ def normalize_job(job):
     city = loc_data.get("city")
     region = loc_data.get("region")
     country = loc_data.get("country")
+    is_remote_flag = loc_data.get("remote", False)
     
     parts = [x for x in [city, region, country] if x]
     loc_str = ", ".join(parts)
     
-    location_obj = parse_location(loc_str)
+    # If their API says explicitly it's remote, ensure we capture that even if text doesn't say "Remote"
+    if is_remote_flag:
+        # Append "Remote" to string so parser picks it up? 
+        # Or manually set flag.
+        # Let's just append "Remote" to the string we parse if it's not there.
+        if "remote" not in loc_str.lower():
+            loc_str = f"Remote - {loc_str}"
+    
+    parsed_locations = [parse_location(loc_str)]
     
     # Date
     # releasedDate or createdOn
@@ -49,7 +58,7 @@ def normalize_job(job):
         # Actually usually it's not in the list response. 
         # But we can try to guess or use the CLI link if available.
         # Let's check raw data structure if needed. For now constructing standard link.
-        "locations": [location_obj],
+        "locations": parsed_locations,
         "location_display": loc_str,
         "posted_at": posted_at,
         "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z",

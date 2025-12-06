@@ -3,7 +3,13 @@
     "company_slug": "cvshealth",
     "host": "cvshealth.wd1.myworkdayjobs.com",
     "tenant": "cvshealth",
-    "site_slug": "CVS_Health_Careers"
+    "site_slug": "CVS_Health_Careers",
+    "appliedFacets": {
+      "jobFamilyGroup": [
+        "e65dbadf6a50100168ed7f2a693c0001",
+        "e65dbadf6a50100168ed86fe4cf50001"
+      ]
+    }
   },
   {
     "company_slug": "modernatx",

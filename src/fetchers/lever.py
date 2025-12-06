@@ -21,12 +21,23 @@ def normalize_job(job):
     Normalizes a Lever job to the unified schema.
     """
     # Location handling
-    # categories -> location (string)
+    # Categories -> location
+    # Sometimes Lever jobs have 'workplaceType' (remote/onsite)
+    
     loc_str = job.get("categories", {}).get("location")
-    if not loc_str:
-        loc_str = job.get("country")
+    country = job.get("country")
+    
+    all_loc_strings = []
+    if loc_str:
+        all_loc_strings.append(loc_str)
+    if country and country != loc_str:
+        all_loc_strings.append(country)
         
-    location_obj = parse_location(loc_str)
+    parsed_locations = [parse_location(l) for l in all_loc_strings]
+    
+    if str(job.get("workplaceType")).lower() == "remote":
+        if not any(pl["is_remote"] for pl in parsed_locations):
+            parsed_locations.append(parse_location("Remote"))
     
     # Date handling
     # createdAt is ms timestamp
@@ -45,7 +56,7 @@ def normalize_job(job):
         "req_id": str(job.get("id")),
         "title": job.get("text"), # Lever uses 'text' for title
         "url": job.get("hostedUrl"),
-        "locations": [location_obj],
+        "locations": parsed_locations,
         "location_display": loc_str,
         "posted_at": posted_at,
         "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z",
