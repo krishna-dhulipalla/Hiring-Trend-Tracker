@@ -3,7 +3,9 @@ import json
 import logging
 import datetime
 from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
+from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
 from src.utils import is_valid_job, is_us_eligible
+from src import diff
 
 def setup_logging(run_timestamp):
     """Sets up logging for the current run."""
@@ -115,6 +117,27 @@ def main():
             msg = f"{slug} - {ats} - {len(raw_jobs)} raw, {len(filtered_jobs)} filtered"
             success_logger.info(msg)
             console_logger.info(f"OK {msg}")
+
+            # Generate Diff (History Brain)
+            try:
+                # Filtered snapshots are stored in filtered_path's directory
+                snapshot_dir = os.path.dirname(filtered_path)
+                
+                # We want diffs to live in data/diffs/{ats}/{slug}/
+                diff_dir = f"data/diffs/{ats}/{slug}"
+                
+                diff.generate_diff(
+                    company_slug=slug,
+                    current_ts=run_timestamp,
+                    current_snapshot_data=filtered_jobs,
+                    snapshot_dir=snapshot_dir,
+                    diff_dir=diff_dir
+                )
+            except Exception as e:
+                err_msg = f"Diff generation failed for {slug}: {e}"
+                console_logger.error(err_msg)
+                failure_logger.error(err_msg)
+
 
         except Exception as e:
             # Write error marker with full stack trace

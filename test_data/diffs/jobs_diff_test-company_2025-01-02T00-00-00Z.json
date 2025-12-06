@@ -1,0 +1,107 @@
+{
+  "company_slug": "test-company",
+  "current_snapshot_ts": "2025-01-02T00-00-00Z",
+  "previous_snapshot_ts": "2025-01-01T00-00-00Z",
+  "summary": {
+    "added": 1,
+    "removed": 1,
+    "changed": 2,
+    "us_added": 1,
+    "us_remote_added": 0,
+    "senior_plus_added": 1
+  },
+  "added": [
+    {
+      "job_key": "5",
+      "req_id": null,
+      "title": "Staff AI",
+      "url": "http://a.com/5",
+      "locations": [
+        {
+          "city": "NY",
+          "is_us": true,
+          "is_remote": false
+        }
+      ],
+      "is_us": true,
+      "is_us_remote": false,
+      "seniority": "Staff+",
+      "discipline": "Other",
+      "posted_at": "2025-01-02",
+      "first_seen_at": "2025-01-02",
+      "last_seen_at": null,
+      "status": "open",
+      "location_display": "NY"
+    }
+  ],
+  "removed": [
+    {
+      "job_key": "3",
+      "req_id": null,
+      "title": "Old API Eng",
+      "url": "http://a.com/3",
+      "locations": [],
+      "is_us": false,
+      "is_us_remote": false,
+      "seniority": "Mid",
+      "discipline": "Other",
+      "posted_at": "2024-12-01",
+      "first_seen_at": "2024-12-01",
+      "last_seen_at": null,
+      "status": "open",
+      "location_display": ""
+    }
+  ],
+  "changed": [
+    {
+      "job_key": "4",
+      "req_id": null,
+      "title": "Ghost",
+      "url": "http://a.com/4",
+      "locations": [],
+      "is_us": false,
+      "is_us_remote": false,
+      "seniority": "Mid",
+      "discipline": "Other",
+      "posted_at": "2025-01-02",
+      "first_seen_at": "2025-01-02",
+      "last_seen_at": null,
+      "status": "open",
+      "location_display": "",
+      "changes": {
+        "posted_at": {
+          "before": null,
+          "after": "2025-01-02"
+        }
+      }
+    },
+    {
+      "job_key": "2",
+      "req_id": null,
+      "title": "Mid Engineer",
+      "url": "http://a.com/2",
+      "locations": [
+        {
+          "city": "Remote",
+          "is_us": true,
+          "is_remote": true
+        }
+      ],
+      "is_us": true,
+      "is_us_remote": true,
+      "seniority": "Mid",
+      "discipline": "Other",
+      "posted_at": "2024-12-01",
+      "first_seen_at": "2024-12-01",
+      "last_seen_at": null,
+      "status": "open",
+      "location_display": "Remote",
+      "changes": {
+        "title": {
+          "before": "Junior Engineer",
+          "after": "Mid Engineer"
+        }
+      }
+    }
+  ]
+}
