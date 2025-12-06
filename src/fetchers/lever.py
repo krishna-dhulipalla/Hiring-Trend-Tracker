@@ -1,33 +1,54 @@
 import requests
+import datetime
+from src.utils import parse_location, parse_posted_at
 
 def fetch_jobs(company_slug):
     """
     Fetches jobs from the Lever API for a given company.
-    Endpoint: https://api.lever.co/v0/postings/{company_slug}?mode=json
     """
     url = f"https://api.lever.co/v0/postings/{company_slug}?mode=json"
     try:
         response = requests.get(url)
         response.raise_for_status()
         raw_jobs = response.json()
-        
-        normalized_jobs = []
-        for job in raw_jobs:
-            # Lever location is often in 'categories' -> 'location' or 'text'
-            # But the top level 'categories' object has 'location'
-            location = job.get("categories", {}).get("location")
-            if not location:
-                # Fallback to 'country' if available or other fields
-                location = job.get("country")
-            
-            normalized_jobs.append({
-                "company_slug": company_slug,
-                "req_id": str(job.get("id")),
-                "title": job.get("text"), # Lever uses 'text' for title
-                "location": location,
-                "url": job.get("hostedUrl")
-            })
-        return normalized_jobs
+        return raw_jobs
     except requests.RequestException as e:
         print(f"Error fetching Lever jobs for {company_slug}: {e}")
         return []
+
+def normalize_job(job):
+    """
+    Normalizes a Lever job to the unified schema.
+    """
+    # Location handling
+    # categories -> location (string)
+    loc_str = job.get("categories", {}).get("location")
+    if not loc_str:
+        loc_str = job.get("country")
+        
+    location_obj = parse_location(loc_str)
+    
+    # Date handling
+    # createdAt is ms timestamp
+    created_at_ms = job.get("createdAt")
+    if created_at_ms:
+        # Convert ms to ISO
+        dt = datetime.datetime.utcfromtimestamp(created_at_ms / 1000.0)
+        posted_at = dt.isoformat() + "Z"
+    else:
+        posted_at = None
+        
+    return {
+        "source_ats": "lever",
+        "company_slug": "", 
+        "job_key": str(job.get("id")),
+        "req_id": str(job.get("id")),
+        "title": job.get("text"), # Lever uses 'text' for title
+        "url": job.get("hostedUrl"),
+        "locations": [location_obj],
+        "location_display": loc_str,
+        "posted_at": posted_at,
+        "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "last_seen_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "status": "open"
+    }

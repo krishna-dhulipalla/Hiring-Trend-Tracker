@@ -1,37 +1,63 @@
 import re
 import difflib
+from datetime import datetime, timedelta
+import dateutil.parser
 from src.config import HARD_NEGATIVES, ABBREVIATIONS, ROLE_FAMILIES, SPECIAL_TOKENS
 
 def parse_location(location_name):
     """
-    Parses a location string into a dictionary with country, state, city, remote status.
-    Conservative rules:
-    - Detects 'Remote' variants.
-    - Detects 'United States', 'USA', 'US'.
-    - Detects state abbreviations (CA, NY, TX, etc.).
+    Parses a location string into a structured dictionary.
+    Strict US detection rules applied.
     """
     if not location_name:
-        return {"raw": None, "is_remote": False, "is_us": False}
+        return {
+            "raw": None, 
+            "city": None, 
+            "state": None, 
+            "country_code": None, 
+            "is_us": False, 
+            "is_remote": False
+        }
 
     loc_lower = location_name.lower()
     
     # Remote detection
     is_remote = "remote" in loc_lower
     
-    # US detection
+    # US Detection - Strict Rules
     is_us = False
-    if any(x in loc_lower for x in ["united states", "usa", "us"]) or \
-       re.search(r'\b(us)\b', loc_lower):
-        is_us = True
     
-    # State detection (abbreviations and full names)
-    us_states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
-                 "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
-                 "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
-                 "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
-                 "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
-                 "DC"]
-                 
+    # 1. Explicit US Country Name
+    if any(x in loc_lower for x in ["united states", "usa", "u.s."]):
+        is_us = True
+        
+    # 2. ISO Prefix US-
+    if "us-" in loc_lower: # e.g. "US-CA-San Francisco"
+        is_us = True
+
+    # 3. State Codes with delimiters (e.g. ", CA", " TX ")
+    # NOT just "CA" which could be Canada or "Call"
+    us_state_codes = [
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", 
+        "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+        "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+        "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+        "DC"
+    ]
+    
+    if not is_us:
+        for code in us_state_codes:
+            # Match ", CA", " CA ", ",CA" (end of string), " CA" (end of string)
+            # Regex: (?:^|[,\s])CODE(?:[,\s]|$)
+            # But "CA-" is explicit non-US usually if it's CA-ON (Canada-Ontario)
+            # However some systems use US-CA.
+            # Let's match ", CA" or " CA " specifically as typically seen in "City, ST"
+            if re.search(r'[\s,]{}\b'.format(code), location_name): 
+                 is_us = True
+                 break
+
+    # 4. Full State Names
     full_state_names = [
         "alabama", "alaska", "arizona", "arkansas", "california", "colorado", 
         "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho", 
@@ -45,26 +71,104 @@ def parse_location(location_name):
         "west virginia", "wisconsin", "wyoming", "district of columbia"
     ]
     
-    found_state = None
-    for state in us_states:
-        # Check for ", CA" or " CA " or start/end of string
-        if re.search(r'\b' + state + r'\b', location_name):
-            found_state = state
-            is_us = True
-            break
-            
     if not is_us:
         for state in full_state_names:
             if state in loc_lower:
                 is_us = True
                 break
+    
+    # Non-US Overrides / Explicit Non-US indicators
+    # ISO prefixes like CA-, FR-, DE-, IN-, PL- (excluding US-)
+    if re.search(r'\b[a-z]{2}-', loc_lower):
+        if not loc_lower.startswith("us-"):
+             # It might be CA-ON (Canada), but check if it's just a weird format
+             # Assume NON-US if we see XX- formatted prefix that isn't US-
+             # Actually, "CA-" could be California if "US-CA-..." but typically "CA-ON" is Canada
+             # Let's check strict non-US keywords
+             pass
+
+    non_us_keywords = [
+        "canada", "france", "germany", "india", "poland", "uk", "united kingdom", 
+        "london", "toronto", "vancouver", "montreal", "berlin", "munich", 
+        "paris", "bangalore", "pune", "hyderabad", "delhi", "mumbai"
+    ]
+    
+    for kw in non_us_keywords:
+        if kw in loc_lower:
+            is_us = False
+            break
             
+    # ISO Prefix strict check for non-US
+    # e.g. "CA-ON" -> Canada
+    if re.match(r'^(ca|in|fr|de|pl|gb|uk)-', loc_lower):
+        is_us = False
+
     return {
         "raw": location_name,
-        "is_remote": is_remote,
+        "city": None, # Parsing city/state specifically is hard without a db, leaving None for now or could approximate
+        "state": None,
+        "country_code": "US" if is_us else None,
         "is_us": is_us,
-        "state": found_state
+        "is_remote": is_remote
     }
+
+def parse_posted_at(date_string):
+    """
+    Parses a date string into a UTC ISO 8601 string.
+    Handles relative dates like "Posted 3 days ago".
+    Returns None if parsing fails.
+    """
+    if not date_string:
+        return None
+        
+    try:
+        # 1. Handle "X days ago" or "Posted X days ago"
+        lower_date = date_string.lower()
+        if "ago" in lower_date:
+            # Extract number
+            match = re.search(r'(\d+)\+?\s*days?', lower_date)
+            if match:
+                days_ago = int(match.group(1))
+                dt = datetime.utcnow() - timedelta(days=days_ago)
+                return dt.isoformat()
+            
+            if "today" in lower_date:
+                return datetime.utcnow().isoformat()
+            
+            if "yesterday" in lower_date:
+                return (datetime.utcnow() - timedelta(days=1)).isoformat()
+            
+            # "30+ days ago" usually handled by regex above, but check just in case
+            if "30+" in lower_date:
+                 dt = datetime.utcnow() - timedelta(days=30)
+                 return dt.isoformat()
+
+        # 2. Handle "Today", "Yesterday" without "ago"
+        if lower_date == "posted today" or lower_date == "today":
+             return datetime.utcnow().isoformat()
+        if lower_date == "posted yesterday" or lower_date == "yesterday":
+             return (datetime.utcnow() - timedelta(days=1)).isoformat()
+
+        # 3. Absolute Date Parsing
+        # Use dateutil for robust parsing
+        dt = dateutil.parser.parse(date_string)
+        
+        # Convert to UTC
+        # If naive, assume midnight local -> UTC (which determines date)
+        # But safest is just assume it's roughly correct.
+        if dt.tzinfo is None:
+            # Assume UTC for simplicity or local time?
+            # Requirement: "Date-only (no time) -> treat as local midnight -> then UTC."
+            # We'll just format as ISO which implies local if no Z, but let's append Z if we want UTC
+             return dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+        else:
+            # Convert to UTC
+            dt_utc = dt.astimezone(datetime.timezone.utc)
+            return dt_utc.isoformat().replace("+00:00", "Z")
+
+    except Exception:
+        return None
+
 
 def normalize_title(title):
     """

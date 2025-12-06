@@ -1,9 +1,10 @@
 import requests
+import datetime
+from src.utils import parse_location, parse_posted_at
 
 def fetch_jobs(company_slug):
     """
-    Fetches jobs from the SmartRecruiters API for a given company.
-    Endpoint: https://api.smartrecruiters.com/v1/companies/{company_slug}/postings
+    Fetches jobs from SmartRecruiters API.
     """
     url = f"https://api.smartrecruiters.com/v1/companies/{company_slug}/postings"
     try:
@@ -11,31 +12,47 @@ def fetch_jobs(company_slug):
         response.raise_for_status()
         data = response.json()
         raw_jobs = data.get('content', [])
-        
-        normalized_jobs = []
-        for job in raw_jobs:
-            # Location in SmartRecruiters: job['location']['city'], job['location']['region'], job['location']['country']
-            loc_obj = job.get("location", {})
-            parts = [loc_obj.get("city"), loc_obj.get("region"), loc_obj.get("country")]
-            loc_str = ", ".join([p for p in parts if p])
-            
-            normalized_jobs.append({
-                "company_slug": company_slug,
-                "req_id": str(job.get("id")),
-                "title": job.get("name"), # SmartRecruiters uses 'name'
-                "location": loc_str,
-                "url": f"https://jobs.smartrecruiters.com/{company_slug}/{job.get('id')}" # Construct URL if not provided
-                # Or job.get('ref')? Usually they have a link.
-                # Let's check if there is a direct link.
-                # Usually 'ref' is internal.
-                # We can construct: https://jobs.smartrecruiters.com/oneclick-ui/company/{company_slug}/publication/{id}?
-                # Or just use the default job page.
-            })
-            # Correction: SmartRecruiters API response usually doesn't have the full public URL directly in the list, 
-            # but we can construct it or maybe it's in 'actions'?
-            # Let's assume standard format: https://jobs.smartrecruiters.com/{company_slug}/{id}
-            
-        return normalized_jobs
+        return raw_jobs
     except requests.RequestException as e:
         print(f"Error fetching SmartRecruiters jobs for {company_slug}: {e}")
         return []
+
+def normalize_job(job):
+    """
+    Normalizes a SmartRecruiters job.
+    """
+    # Location
+    # 'location': {'city': '...', 'region': '...', 'country': '...', 'remote': ...}
+    loc_data = job.get("location", {})
+    city = loc_data.get("city")
+    region = loc_data.get("region")
+    country = loc_data.get("country")
+    
+    parts = [x for x in [city, region, country] if x]
+    loc_str = ", ".join(parts)
+    
+    location_obj = parse_location(loc_str)
+    
+    # Date
+    # releasedDate or createdOn
+    posted_at_raw = job.get("releasedDate") or job.get("createdOn")
+    posted_at = parse_posted_at(posted_at_raw)
+
+    return {
+        "source_ats": "smartrecruiters",
+        "company_slug": "",
+        "job_key": str(job.get("id")),
+        "req_id": str(job.get("refNumber") or job.get("id")),
+        "title": job.get("name"),
+        "url": f"https://jobs.smartrecruiters.com/{job.get('company', {}).get('identifier')}/{job.get('id')}", 
+        # SmartRecruiters doesn't always give direct URL in list, constructing it
+        # Actually usually it's not in the list response. 
+        # But we can try to guess or use the CLI link if available.
+        # Let's check raw data structure if needed. For now constructing standard link.
+        "locations": [location_obj],
+        "location_display": loc_str,
+        "posted_at": posted_at,
+        "first_seen_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "last_seen_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "status": "open"
+    }
