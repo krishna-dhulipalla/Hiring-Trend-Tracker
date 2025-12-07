@@ -133,6 +133,17 @@ def main():
                     snapshot_dir=snapshot_dir,
                     diff_dir=diff_dir
                 )
+                
+                # Sync to Analytics DB
+                try:
+                    from src.analytics.daily_sync import sync_job_diff
+                    diff_file = os.path.join(diff_dir, f"{run_timestamp}.json")
+                    if os.path.exists(diff_file):
+                        with open(diff_file, 'r', encoding='utf-8') as f:
+                            diff_data = json.load(f)
+                        sync_job_diff(diff_data, slug, run_timestamp)
+                except Exception as e:
+                    console_logger.error(f"Analytics sync failed for {slug}: {e}")
             except Exception as e:
                 err_msg = f"Diff generation failed for {slug}: {e}"
                 console_logger.error(err_msg)

@@ -109,6 +109,15 @@ def main():
     logging.info(f"Finnhub: Fetched {stats['finnhub_fetched']}, Failures {stats['finnhub_failures']}")
     logging.info("-" * 20)
 
+    # Analytics Aggregation
+    try:
+        logging.info("Running Daily News Analytics Aggregation...")
+        from src.analytics.daily_sync import agg_daily_news
+        agg_daily_news(days_back=30) # Refresh last 30 days window
+        logging.info("Analytics Aggregation Complete.")
+    except Exception as e:
+        logging.error(f"Analytics Aggregation failed: {e}")
+
 
 
 if __name__ == "__main__":

@@ -47,6 +47,43 @@ def init_db():
             UNIQUE(raw_news_id)
         )
     ''')
+
+    # Analytics: Job Diffs Daily
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS job_diffs_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            run_timestamp TEXT,
+            added_count INTEGER,
+            removed_count INTEGER,
+            changed_count INTEGER,
+            us_added_count INTEGER,
+            us_remote_added_count INTEGER,
+            senior_plus_added_count INTEGER,
+            PRIMARY KEY (company_slug, date)
+        )
+    ''')
+    
+    # Analytics: Company News Daily
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS company_news_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            article_count INTEGER,
+            funding_count INTEGER,
+            earnings_count INTEGER,
+            product_count INTEGER,
+            ai_announcement_count INTEGER,
+            layoff_count INTEGER,
+            hiring_count INTEGER,
+            regulatory_count INTEGER,
+            has_major_event BOOLEAN,
+            major_event_types TEXT,
+            top_headline_title TEXT,
+            top_headline_url TEXT,
+            PRIMARY KEY (company_slug, date)
+        )
+    ''')
     
     conn.commit()
     conn.close()
