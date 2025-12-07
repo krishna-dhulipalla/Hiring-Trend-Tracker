@@ -1,1 +1,6 @@
 requests
+gnews
+finnhub-python
+textblob
+python-dotenv
+
