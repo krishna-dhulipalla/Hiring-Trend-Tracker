@@ -1,6 +1,6 @@
 import re
 import difflib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import dateutil.parser
 from src.config import HARD_NEGATIVES, ABBREVIATIONS, ROLE_FAMILIES, SPECIAL_TOKENS
 
@@ -135,8 +135,21 @@ def parse_posted_at(date_string):
         return None
         
     try:
+        # 0. Handle epoch timestamps (int/float)
+        if isinstance(date_string, (int, float)):
+             # Assume seconds or milliseconds?
+             # Workday usually gives milliseconds if it's huge, or string ISO.
+             # If int, let's guess. If > 30000000000 (year 2920), likely millis.
+             # Common cut off: 10 digits = seconds. 13 digits = millis.
+             # 1733678788 (seconds) ~ 2024.
+             ts = float(date_string)
+             if ts > 100000000000: # Milliseconds
+                 ts = ts / 1000.0
+             dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+             return dt.strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+
         # 1. Handle "X days ago" or "Posted X days ago"
-        lower_date = date_string.lower()
+        lower_date = str(date_string).lower()
         if "ago" in lower_date:
             # Extract number
             match = re.search(r'(\d+)\+?\s*days?', lower_date)

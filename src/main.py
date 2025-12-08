@@ -3,7 +3,7 @@ import json
 import logging
 import datetime
 from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
-from src.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
+
 from src.utils import is_valid_job, is_us_eligible
 from src import diff
 
@@ -98,6 +98,10 @@ def main():
             else:
                 normalized_jobs = raw_jobs
 
+            # Inject company_slug
+            for job in normalized_jobs:
+                job["company_slug"] = slug
+
             # Filter jobs
             filtered_jobs = [
                 job for job in normalized_jobs 
@@ -137,7 +141,8 @@ def main():
                 # Sync to Analytics DB
                 try:
                     from src.analytics.daily_sync import sync_job_diff
-                    diff_file = os.path.join(diff_dir, f"{run_timestamp}.json")
+                    # Fix: use the correct filename pattern
+                    diff_file = os.path.join(diff_dir, f"jobs_diff_{slug}_{run_timestamp}.json")
                     if os.path.exists(diff_file):
                         with open(diff_file, 'r', encoding='utf-8') as f:
                             diff_data = json.load(f)

@@ -6,7 +6,7 @@ HARD_NEGATIVES = {
     # Non-engineering functions
     "recruiter", "recruiting", "talent", "hr", "sales", "marketing", "growth", 
     "customer", "support", "operations", "finance", "accounting", "legal",
-    "business", "coordinator", "assistant", "manager", "head", "chief", "director", "vp", "principal"
+    "business", "coordinator", "assistant", "manager", "head", "chief", "director", "vp"
 }
 
 # Abbreviation / expansion map

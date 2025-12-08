@@ -3,4 +3,6 @@ gnews
 finnhub-python
 textblob
 python-dotenv
-
+streamlit
+altair
+pandas

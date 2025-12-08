@@ -58,13 +58,9 @@ def _get_is_us_remote(job: Dict[str, Any]) -> bool:
             if loc.get("is_remote"):
                 has_remote = True
             # Check if explicitly non-US (if is_us is explicit False, or country_code is not US)
-            # Assuming 'is_us' flag is the source of truth for US-ness.
-            # If is_us is False, does it mean non-US? 
-            # Usually yes, but let's confirm usage. 
-            # If we rely on is_us flag:
-            if loc.get("is_us") is False: 
-                # Careful: if it's missing it might be None/False.
-                # If we have a country code and it's not US, it's non-US.
+            # We assume 'is_us' is the source of truth, but if it's missing/False, we check country_code.
+            if not loc.get("is_us"): 
+                # Covers explicit False or None (missing)
                 cc = loc.get("country_code") or loc.get("country")
                 if cc and str(cc).upper() not in ["US", "USA", "UNITED STATES"]:
                     has_non_us = True
@@ -130,9 +126,9 @@ def _compare_locations(locs1: List[Any], locs2: List[Any]) -> bool:
         if isinstance(l, str): return l.strip().lower()
         if isinstance(l, dict):
              return (
-                 l.get("city", "").strip().lower(),
-                 l.get("state", "").strip().lower(),
-                 l.get("country_code", "").strip().lower(),
+                 (l.get("city") or "").strip().lower(),
+                 (l.get("state") or "").strip().lower(),
+                 (l.get("country_code") or "").strip().lower(),
                  l.get("is_remote", False),
                  l.get("is_us", False)
              )

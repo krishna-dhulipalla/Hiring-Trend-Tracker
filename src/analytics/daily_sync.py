@@ -20,9 +20,11 @@ def sync_job_diff(diff_data, company_slug, run_timestamp):
         us_remote_added_count = diff_data.get("summary", {}).get("us_remote_added", 0)
         
         # Calculate senior+ added
-        # Assuming diff_data["added"] contains the list of added jobs
-        # But diff.py structure puts details in "details" -> "added"
-        added_jobs = diff_data.get("details", {}).get("added", [])
+        # Support both structures: top-level (diff.py) and nested "details" (dashboard assumption)
+        added_jobs = diff_data.get("added", [])
+        if not added_jobs:
+            added_jobs = diff_data.get("details", {}).get("added", [])
+            
         keywords = ["senior", "staff", "principal", "lead", "director", "head", "vp", "architect"]
         senior_plus_added_count = 0
         for job in added_jobs:
@@ -60,6 +62,7 @@ def agg_daily_news(days_back=30):
     # Get range
     # In SQLite, we can use date() on the ISO string
     
+    # Fix: Don't use alias in WHERE clause
     query = """
     SELECT 
         company_slug, 
@@ -73,7 +76,7 @@ def agg_daily_news(days_back=30):
         SUM(CASE WHEN news_category='hiring' THEN 1 ELSE 0 END) as hiring,
         SUM(CASE WHEN news_category='regulatory' THEN 1 ELSE 0 END) as regulatory
     FROM normalized_news
-    WHERE day_date >= date('now', ?)
+    WHERE date(published_at) >= date('now', ?)
     GROUP BY company_slug, day_date
     """
     
