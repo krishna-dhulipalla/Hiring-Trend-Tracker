@@ -1,0 +1,185 @@
+Implementation plan (per company)
+1) Google (Careers web, SSR HTML list pages)
+
+Discovery URL (example):
+https://www.google.com/about/careers/applications/jobs/results?location=United%20States&target_level=MID&target_level=EARLY&page=<PAGE>
+
+Method: GET HTML (server-rendered).
+Items selector: list cards under ul.spHGqe > li.lLd3Je.
+Fields in card:
+
+title → h3.QJPWVe
+
+company → first .RP7SMd span (text “Google”)
+
+locations[] → all .r0wTof texts in the card
+
+experience_level → visible label near the “bar_chart” icon (“Mid”, “Advanced”)
+
+detail_url → anchor inside the “Learn more” button (a[href^="jobs/results/"])
+
+job_id → first numeric token from that href (e.g., jobs/results/117379137676419782-...)
+
+Pagination:
+
+Param: page=<int> (1,2,3,…), page size ≈ 20.
+
+Stop rules (use all):
+
+Fewer than 20 cards on a page → stop.
+
+No cards → stop.
+
+Duplicate fence: if first job_id equals first of the previous page → stop.
+
+Optional: read total from .rZt9ff .SWhIm (e.g., “2,296”) and stop after ceil(total/20).
+
+Optional detail pass: fetch each detail_url to extract description_raw and any <script type="application/ld+json"> JobPosting block.
+Primary key: job_id (numeric).
+
+2) Meta (metacareers GraphQL, Relay)
+
+Endpoint: POST https://www.metacareers.com/graphql
+Transport: form-encoded/JSON (Relay).
+Important payload fields:
+
+doc_id: e.g., CareersJobSearchResultsV3DataQuery (use the exact working id you see)
+
+variables.search_input: filters (teams, roles, locations, etc.)
+
+Page size: results_per_page (if accepted by this doc)
+
+Cursor: after or similar (Relay)
+
+Items path (from your capture):
+data.job_search_with_featured_jobs.all_jobs.all_jobs[] → { id, title, locations, teams, sub_teams, ... }
+
+Pagination:
+
+Preferred: Relay connection with page_info.has_next_page + page_info.end_cursor.
+
+Fallback: if they emulate paging with page/offset in variables, iterate that.
+
+Stop rules: has_next_page=false, or returned length < page size, or duplicate fence on first id.
+
+Primary key: id (string/numeric).
+Notes: Keep the minimal request fields that make the query succeed; log the doc_id used.
+
+3) Amazon (amazon.jobs search JSON)
+
+Endpoint: GET https://www.amazon.jobs/en/search.json?...
+Key query params you’ll use:
+
+result_limit=<int> (page size)
+
+offset=<int> (0, result_limit, 2*result_limit…)
+
+Facets (already in the URL you captured) as needed.
+
+Items path: jobs[] → fields include id, job_path (relative URL), title, company_name, locations[], job_category, posted_date, etc.
+Total count: facets.hits.
+
+Pagination: increment offset += result_limit.
+Stop rules: offset >= facets.hits or jobs.length < result_limit.
+Primary key: id (if unstable, fall back to id_icims or hash of job_path).
+
+4) Uber (POST JSON)
+
+Endpoint: POST https://www.uber.com/api/loadSearchJobsResults?localeCode=en
+Request body: includes filters + paging knobs (e.g., page/page_size or from/size).
+Items path: data.results[] → { id, title, location(s), department, level, url, updatedDate, ... }.
+Pagination: bump page (or from) until done.
+Stop rules: if response includes a total, stop when page * size >= total; else results.length < size or duplicate fence.
+Primary key: id.
+
+5) Apple (jobs.apple.com JSON + CSRF)
+
+Endpoints:
+
+GET https://jobs.apple.com/CSRFTOKEN (or the portal’s CSRF endpoint)
+
+POST https://jobs.apple.com/api/v1/search (send CSRF as required—cookie/header)
+
+Request body: includes filters + pageNumber, itemsPerPage (names may vary; use what you saw).
+Items path: array of job items in the response (plus a total).
+Pagination: increment pageNumber.
+Stop rules: pageNumber * itemsPerPage >= total or returned length < itemsPerPage.
+Primary key: Apple’s job id (from item), else hash of canonical url.
+
+Field mapping (normalize to your existing output keys)
+
+For every adapter, return:
+
+job_id → (Google numeric from href) / (Meta id) / (Amazon id or id_icims) / (Uber id) / (Apple id)
+
+title → site field
+
+company → constant (e.g., “Google”, “Meta”, …)
+
+locations (array of strings) → site locations; split multi-city; trim “+N more” if detail fetch not done
+
+url → absolute role URL (Amazon uses job_path + host; Google uses jobs/results/... + host)
+
+employment_type → if available; else null
+
+posted_date → if available; else null
+
+remote_status → if available; else null
+
+description_raw → from detail (only if doing 2-pass; optional for v1)
+
+department / team / sub_teams → if available; else null
+
+Also include your standard internal fields (e.g., source, fetched_at, raw_hash) exactly as other fetchers do.
+
+Safety, rate & failure rules (all five)
+
+Backoff on 429/5xx (retry up to 3, jittered delays).
+
+1–2s politeness delay between pages.
+
+If a page structure/path is missing fields, log schema_mismatch with: adapter, page_or_cursor, key_path, status.
+
+Duplicate fence: if the first job_id on the new page equals first of previous page, stop.
+
+Two-pass detail (optional for now): only for “new” or “changed” jobs based on your snapshot hash.
+
+“Temp test” files to run these only (no full pipeline)
+
+Create one tiny test runner per adapter (names are suggestions; put them together in a single, separate folder under fetchers/ as you said). These are standalone and should:
+
+Accept minimal inputs (filters) via env or a small test json.
+
+Fetch exactly one or two pages (or up to N items).
+
+Emit an NDJSON or JSON array matching your normalized format to stdout or a test output file.
+
+Print a one-line summary: {adapter, pages, items, stop_reason}.
+
+Temp test inputs (example content to mirror your screenshots):
+
+Google.test.json → { "url": "…/jobs/results?location=United%20States&target_level=MID&target_level=EARLY", "pages": 2 }
+
+Meta.test.json → { "doc_id": "CareersJobSearchResultsV3DataQuery", "variables": { "search_input": { "q": null, "divisions": [], "offices": [], "results_per_page": 50 } } }
+
+Amazon.test.json → { "params": { "result_limit": 50, "offset": 0, "category": ["software-development","data-science"] } }
+
+Uber.test.json → { "payload": { "page": 1, "size": 50, "filters": { "department": ["Data"], "localeCode": "en" } } }
+
+Apple.test.json → { "pageNumber": 1, "itemsPerPage": 50, "filters": { "team": ["Machine Learning"] } }
+
+Temp assertions (what the LLM should verify before “pass”):
+
+Output is valid JSON/NDJSON.
+
+At least 1 job item.
+
+Every item has: job_id, title, company, locations (array), url.
+
+No duplicate job_id within the same run.
+
+If a total exists (Amazon/Uber/Apple), computed pages do not exceed it.
+
+Stop reason is one of the defined rules.
+
+(These temp runners should be callable independently and not import your full app. They’re disposable but useful for CI smoke tests later.)
