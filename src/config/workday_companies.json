@@ -1,0 +1,92 @@
+[
+  {
+    "company_slug": "cvshealth",
+    "host": "cvshealth.wd1.myworkdayjobs.com",
+    "tenant": "cvshealth",
+    "site_slug": "CVS_Health_Careers",
+    "appliedFacets": {
+      "jobFamilyGroup": [
+        "e65dbadf6a50100168ed7f2a693c0001",
+        "e65dbadf6a50100168ed86fe4cf50001"
+      ]
+    }
+  },
+  {
+    "company_slug": "modernatx",
+    "host": "modernatx.wd1.myworkdayjobs.com",
+    "tenant": "modernatx",
+    "site_slug": "M_tx"
+  },
+  {
+    "company_slug": "capitalone",
+    "host": "capitalone.wd12.myworkdayjobs.com",
+    "tenant": "capitalone",
+    "site_slug": "Capital_One"
+  },
+  {
+    "company_slug": "bloomberg",
+    "host": "bloomberg.wd1.myworkdayjobs.com",
+    "tenant": "bloomberg",
+    "site_slug": "Bloombergindustrygroup_External_Career_Site"
+  },
+  {
+    "company_slug": "nvidia",
+    "host": "nvidia.wd5.myworkdayjobs.com",
+    "tenant": "nvidia",
+    "site_slug": "NVIDIAExternalCareerSite"
+  },
+  {
+    "company_slug": "salesforce",
+    "host": "salesforce.wd12.myworkdayjobs.com",
+    "tenant": "salesforce",
+    "site_slug": "External_Career_Site"
+  },
+  {
+    "company_slug": "adobe",
+    "host": "adobe.wd5.myworkdayjobs.com",
+    "tenant": "adobe",
+    "site_slug": "external_experienced"
+  },
+  {
+    "company_slug": "pfizer",
+    "host": "pfizer.wd1.myworkdayjobs.com",
+    "tenant": "pfizer",
+    "site_slug": "PfizerCareers"
+  },
+  {
+    "company_slug": "gilead",
+    "host": "gilead.wd1.myworkdayjobs.com",
+    "tenant": "gilead",
+    "site_slug": "gileadcareers"
+  },
+  {
+    "company_slug": "zillow",
+    "host": "zillow.wd5.myworkdayjobs.com",
+    "tenant": "zillow",
+    "site_slug": "Zillow_Group_External"
+  },
+  {
+    "company_slug": "walmart",
+    "host": "walmart.wd5.myworkdayjobs.com",
+    "tenant": "walmart",
+    "site_slug": "WalmartExternal"
+  },
+  {
+    "company_slug": "autodesk",
+    "host": "autodesk.wd1.myworkdayjobs.com",
+    "tenant": "autodesk",
+    "site_slug": "Ext"
+  },
+  {
+    "company_slug": "netflix",
+    "host": "netflix.wd1.myworkdayjobs.com",
+    "tenant": "netflix",
+    "site_slug": "Netflix"
+  },
+  {
+    "company_slug": "snapchat",
+    "host": "snapchat.wd1.myworkdayjobs.com",
+    "tenant": "snapchat",
+    "site_slug": "snap"
+  }
+]

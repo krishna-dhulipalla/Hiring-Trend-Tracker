@@ -1,0 +1,149 @@
+[
+  { "slug": "spotify", "ats": "lever", "ticker": "SPOT" },
+  { "slug": "palantir", "ats": "lever", "ticker": "PLTR" },
+  { "slug": "zoox", "ats": "lever", "ticker": "AMZN" },
+  { "slug": "woven-by-toyota", "ats": "lever", "ticker": "TM" },
+  { "slug": "MachinaLabs", "ats": "lever", "ticker": null },
+  { "slug": "lendbuzz", "ats": "lever", "ticker": null },
+  { "slug": "wisdomai", "ats": "lever", "ticker": null },
+  { "slug": "mistral", "ats": "lever", "ticker": null },
+  { "slug": "voleon", "ats": "lever", "ticker": null },
+  { "slug": "plaid", "ats": "lever", "ticker": null },
+  { "slug": "augmentcomputing", "ats": "greenhouse", "ticker": null },
+  { "slug": "recursionpharmaceuticals", "ats": "greenhouse", "ticker": "RXRX" },
+  { "slug": "benchling", "ats": "greenhouse", "ticker": null },
+  { "slug": "10xgenomics", "ats": "greenhouse", "ticker": "TXG" },
+  { "slug": "databricks", "ats": "greenhouse", "ticker": null },
+  { "slug": "doordashusa", "ats": "greenhouse", "ticker": "DASH" },
+  { "slug": "scaleai", "ats": "greenhouse", "ticker": null },
+  { "slug": "coreweave", "ats": "greenhouse", "ticker": null },
+  { "slug": "brex", "ats": "greenhouse", "ticker": null },
+  { "slug": "affirm", "ats": "greenhouse", "ticker": "AFRM" },
+  { "slug": "airbnb", "ats": "greenhouse", "ticker": "ABNB" },
+  { "slug": "stripe", "ats": "greenhouse", "ticker": null },
+  { "slug": "pinterest", "ats": "greenhouse", "ticker": "PINS" },
+  { "slug": "roblox", "ats": "greenhouse", "ticker": "RBLX" },
+  { "slug": "appliedintuition", "ats": "greenhouse", "ticker": null },
+  { "slug": "okta", "ats": "greenhouse", "ticker": "OKTA" },
+  { "slug": "uberfreight", "ats": "greenhouse", "ticker": "UBER" },
+  { "slug": "c3iot", "ats": "greenhouse", "ticker": "AI" },
+  { "slug": "cvshealth", "ats": "workday", "ticker": "CVS" },
+  { "slug": "modernatx", "ats": "workday", "ticker": "MRNA" },
+  { "slug": "capitalone", "ats": "workday", "ticker": "COF" },
+  { "slug": "bloomberg", "ats": "workday", "ticker": null },
+  { "slug": "nvidia", "ats": "workday", "ticker": "NVDA" },
+  { "slug": "salesforce", "ats": "workday", "ticker": "CRM" },
+  { "slug": "adobe", "ats": "workday", "ticker": "ADBE" },
+  { "slug": "pfizer", "ats": "workday", "ticker": "PFE" },
+  { "slug": "gilead", "ats": "workday", "ticker": "GILD" },
+  { "slug": "zillow", "ats": "workday", "ticker": "ZG" },
+  { "slug": "walmart", "ats": "workday", "ticker": "WMT" },
+  { "slug": "autodesk", "ats": "workday", "ticker": "ADSK" },
+  { "slug": "netflix", "ats": "workday", "ticker": "NFLX" },
+  { "slug": "snapchat", "ats": "workday", "ticker": "SNAP" },
+  { "slug": "snowflake", "ats": "ashby", "ticker": "SNOW" },
+  { "slug": "Jasper%20AI", "ats": "ashby", "ticker": null },
+  { "slug": "notion", "ats": "ashby", "ticker": null },
+  { "slug": "ello", "ats": "ashby", "ticker": null },
+  { "slug": "hadrian-automation", "ats": "ashby", "ticker": null },
+  { "slug": "worldlabs", "ats": "ashby", "ticker": null },
+  { "slug": "cognition", "ats": "ashby", "ticker": null },
+  { "slug": "scribd", "ats": "ashby", "ticker": null },
+  { "slug": "unlearn", "ats": "ashby", "ticker": null },
+  { "slug": "roboflow", "ats": "ashby", "ticker": null },
+  { "slug": "abridge", "ats": "ashby", "ticker": null },
+  { "slug": "decagon", "ats": "ashby", "ticker": null },
+  { "slug": "spearbit", "ats": "ashby", "ticker": null },
+  { "slug": "experian", "ats": "smartrecruiters", "ticker": "EXPN.L" },
+  { "slug": "evolutioniq", "ats": "smartrecruiters", "ticker": null },
+  { "slug": "visa", "ats": "smartrecruiters", "ticker": "V" },
+  {
+    "slug": "google",
+    "ats": "google",
+    "ticker": "GOOGL",
+    "config": {
+      "url": "https://www.google.com/about/careers/applications/jobs/results?location=United%20States"
+    }
+  },
+  {
+    "slug": "amazon",
+    "ats": "amazon",
+    "ticker": "AMZN",
+    "config": {
+      "params": {
+        "result_limit": 100,
+        "offset": 0,
+        "category": ["software-development"]
+      }
+    }
+  },
+  {
+    "slug": "uber",
+    "ats": "uber",
+    "ticker": "UBER",
+    "config": {
+      "payload": {
+        "page": 1,
+        "size": 50,
+        "filters": {
+          "department": ["Engineering"]
+        }
+      }
+    }
+  },
+  {
+    "slug": "apple",
+    "ats": "apple",
+    "ticker": "AAPL",
+    "config": {
+      "query": "",
+      "filters": {
+        "locations": ["postLocation-USA"]
+      },
+      "page": 1,
+      "locale": "en-us",
+      "sort": "newest",
+      "search_page_url": "https://jobs.apple.com/en-us/search?location=united-states-USA"
+    }
+  },
+  {
+    "slug": "meta",
+    "ats": "meta",
+    "ticker": "META",
+    "config": {
+      "results_per_page": 50,
+      "cookie": "ps_l=1; ps_n=1; datr=OTrpaHvfkZ76SypLmgG3yfLv; dpr=1.75; wd=208x678; _ga_M13JT8ZZ31=GS2.2.s1765567425$o1$g0$t1765567563$j60$l0$h0",
+      "x_asbd_id": "359341",
+      "payload": {
+        "av": "0",
+        "__user": "0",
+        "__a": "1",
+        "__req": "2",
+        "__hs": "20434.HYP:comet_plat_default_pkg.2.1...0",
+        "dpr": "1",
+        "__ccg": "EXCELLENT",
+        "__rev": "1031011614",
+        "__s": "hnyt0k:yyj62e:zf2nlj",
+        "__hsi": "7583051992819144827",
+        "__dyn": "7xe6E5q5U5ObwKBAg5S1Dxu13w8CewpUco5S1Gw4BwUx609vCwjE1EE2Cwooa86u0nS4o5-0Bo2ygao1aU2swlo6qU2tBxeax-ewbS0z82ewnE1No2syES4E3PwbS1LwTwNwcO19wr86ii6Ef86aaw9a227E5y1rwea0ji3W1Qw9m",
+        "__csr": "igNb8yi-titKQAmnJ24iiKVW9GiHB-vA8auuQl4yBgDGVGCKEGHA-HGECUyGigO8UiDWUnDUOazqKAuE-4qGi447WCBWKbDF4AzaxOHyo8oF2Xy9FoHiyotyqgkKdDwVwCwCyEC22bw8O4E6ycwVwAwGw44KdCzo4210xmXG2amUG16xG2i3idwSw9am8wa60x80zrwqocU1bE2pwd203yG037x902fE3IxO019-w3cbyU08m80K-01mow1ayE08FE0jMxrw0Spg0q9ydo0kGw1Fe9w0aj204UE0i_g0cv80Eq0e6w2sU",
+        "__hsdp": "l5Syi8kyAQ2Cca49Al2USnaF2auFGK494qGdl5pVi28G2a4p8W1cwwXwyDkwVCBUyueAkyg982zz8mwhCh0h89e2i0eOwJwu8bE6C0FHg5i3Wl0Mw3qU4m0eOw16S0_ov81myU0hGw3LEgwbu1ax9048wLwcro2hwIwWw3bo0-i01k0w1zG07IE0qpw1Jm03Hi01dZw27U0g_w",
+        "__hblp": "02sE0dPo0txg1Fo0a4U2iwIw1QS0dYw2Fo0yK05yE0DO0mm0d3wHw6lwce0eQwdW08ow5Lw8O0aZw1FC0rK056o4e02OK0EU15U6y0h-0Fo2wwi80ZO03x208vw13-",
+        "__sjsp": "l5Syi8kyAQ2Cca49Al2USnaF2auFGK494qGdl5pVi28G2a4p8W1cwwXwyDkwV7BUyueAkyg982zz8mwhCh0h89e2i0eOwJwu82owaqQ1kw-Bgc80SK15w3IE0hJwfS7O0lEK04qE0Y-0JU4G4A0gy2-0O60Aob80Sy0fAw",
+        "__comet_req": "31",
+        "lsd": "AdFY0krQZiU",
+        "jazoest": "2954",
+        "__spin_r": "1031011614",
+        "__spin_b": "trunk",
+        "__spin_t": "1765566876",
+        "__jssesw": "1",
+        "__crn": "comet.candidateportal.CPXCareerProfileJobSearchRootV3PageRoute",
+        "fb_api_caller_class": "RelayModern",
+        "fb_api_req_friendly_name": "CareersJobSearchResultsV3DataQuery",
+        "server_timestamps": "true",
+        "variables": "{\"search_input\":{\"q\":\"software\"}}",
+        "doc_id": "24330890369943030"
+      }
+    }
+  }
+]

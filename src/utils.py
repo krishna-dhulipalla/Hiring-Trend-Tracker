@@ -2,7 +2,44 @@ import re
 import difflib
 from datetime import datetime, timedelta, timezone
 import dateutil.parser
+import logging
+import os
 from src.config import HARD_NEGATIVES, ABBREVIATIONS, ROLE_FAMILIES, SPECIAL_TOKENS
+
+def setup_logging(run_timestamp):
+    """
+    Sets up logging for the run.
+    - File log: Detailed info (logs/YYYY-MM-DD.log)
+    - Console log: warnings/errors or explicit info.
+    """
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    # Use date for daily log file
+    date_str = run_timestamp.split('T')[0]
+    log_file = os.path.join(log_dir, f"{date_str}.log")
+    
+    # Root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # File handler (Detailed)
+    file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    
+    # Console handler (Summary/Clean)
+    # We only want to print INFO+ to console, but maybe keep it cleaner?
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    
+    # Remove existing handlers to avoid duplicates
+    logger.handlers = []
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger, log_file
 
 
 # ---------------------------------------------------------------------------
