@@ -37,6 +37,7 @@ def init_db():
             id TEXT PRIMARY KEY,
             raw_news_id TEXT,
             company_slug TEXT,
+            company_name TEXT,
             news_category TEXT,
             published_at TEXT,
             title TEXT,
@@ -82,6 +83,14 @@ def init_db():
             top_headline_title TEXT,
             top_headline_url TEXT,
             PRIMARY KEY (company_slug, date)
+        )
+    ''')
+    
+    # User Preferences: Starred Companies
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS starred_companies (
+            company_slug TEXT PRIMARY KEY,
+            starred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     

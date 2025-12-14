@@ -27,7 +27,7 @@ def run(run_timestamp, companies, days_back=7, do_init_db=False):
 
     for company in companies:
         slug = company.get("slug")
-        name = slug.replace("-", " ").title()
+        name = company.get("name") or slug.replace("-", " ").title()
         ticker = company.get("ticker")
         
         logger.info(f"Processing News: {name}")
@@ -37,7 +37,7 @@ def run(run_timestamp, companies, days_back=7, do_init_db=False):
         try:
             articles = gnews.fetch_company_news(name, days_back=days_back)
             if articles:
-                count = processor.process_and_store(articles, slug, "gnews")
+                count = processor.process_and_store(articles, slug, "gnews", company_name=name)
                 if count > 0:
                     logger.info(f"  GNews: +{count} new")
                 stats["gnews_fetched"] += len(articles)
@@ -51,7 +51,7 @@ def run(run_timestamp, companies, days_back=7, do_init_db=False):
             try:
                 articles = finnhub.fetch_company_news(ticker, days_back=days_back)
                 if articles:
-                    count = processor.process_and_store(articles, slug, "finnhub")
+                    count = processor.process_and_store(articles, slug, "finnhub", company_name=name)
                     if count > 0:
                         logger.info(f"  Finnhub: +{count} new")
                     stats["finnhub_fetched"] += len(articles)

@@ -28,7 +28,7 @@ class NewsProcessor:
                 return cat
         return "other"
 
-    def process_and_store(self, articles, company_slug, source_name):
+    def process_and_store(self, articles, company_slug, source_name, company_name=None):
         conn = get_connection()
         c = conn.cursor()
         
@@ -76,9 +76,9 @@ class NewsProcessor:
                 category = self.categorize(full_text)
                 
                 c.execute('''
-                    INSERT INTO normalized_news (id, raw_news_id, company_slug, news_category, published_at, title, summary, source_url, processed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (norm_id, raw_id, company_slug, category, pub_at, title, desc, url, datetime.utcnow().isoformat()))
+                    INSERT INTO normalized_news (id, raw_news_id, company_slug, company_name, news_category, published_at, title, summary, source_url, processed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (norm_id, raw_id, company_slug, company_name, category, pub_at, title, desc, url, datetime.utcnow().isoformat()))
                 
                 count += 1
             except Exception as e:

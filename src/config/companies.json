@@ -1,64 +1,223 @@
 [
-  { "slug": "spotify", "ats": "lever", "ticker": "SPOT" },
-  { "slug": "palantir", "ats": "lever", "ticker": "PLTR" },
-  { "slug": "zoox", "ats": "lever", "ticker": "AMZN" },
-  { "slug": "woven-by-toyota", "ats": "lever", "ticker": "TM" },
-  { "slug": "MachinaLabs", "ats": "lever", "ticker": null },
-  { "slug": "lendbuzz", "ats": "lever", "ticker": null },
-  { "slug": "wisdomai", "ats": "lever", "ticker": null },
-  { "slug": "mistral", "ats": "lever", "ticker": null },
-  { "slug": "voleon", "ats": "lever", "ticker": null },
-  { "slug": "plaid", "ats": "lever", "ticker": null },
-  { "slug": "augmentcomputing", "ats": "greenhouse", "ticker": null },
-  { "slug": "recursionpharmaceuticals", "ats": "greenhouse", "ticker": "RXRX" },
-  { "slug": "benchling", "ats": "greenhouse", "ticker": null },
-  { "slug": "10xgenomics", "ats": "greenhouse", "ticker": "TXG" },
-  { "slug": "databricks", "ats": "greenhouse", "ticker": null },
-  { "slug": "doordashusa", "ats": "greenhouse", "ticker": "DASH" },
-  { "slug": "scaleai", "ats": "greenhouse", "ticker": null },
-  { "slug": "coreweave", "ats": "greenhouse", "ticker": null },
-  { "slug": "brex", "ats": "greenhouse", "ticker": null },
-  { "slug": "affirm", "ats": "greenhouse", "ticker": "AFRM" },
-  { "slug": "airbnb", "ats": "greenhouse", "ticker": "ABNB" },
-  { "slug": "stripe", "ats": "greenhouse", "ticker": null },
-  { "slug": "pinterest", "ats": "greenhouse", "ticker": "PINS" },
-  { "slug": "roblox", "ats": "greenhouse", "ticker": "RBLX" },
-  { "slug": "appliedintuition", "ats": "greenhouse", "ticker": null },
-  { "slug": "okta", "ats": "greenhouse", "ticker": "OKTA" },
-  { "slug": "uberfreight", "ats": "greenhouse", "ticker": "UBER" },
-  { "slug": "c3iot", "ats": "greenhouse", "ticker": "AI" },
-  { "slug": "cvshealth", "ats": "workday", "ticker": "CVS" },
-  { "slug": "modernatx", "ats": "workday", "ticker": "MRNA" },
-  { "slug": "capitalone", "ats": "workday", "ticker": "COF" },
-  { "slug": "bloomberg", "ats": "workday", "ticker": null },
-  { "slug": "nvidia", "ats": "workday", "ticker": "NVDA" },
-  { "slug": "salesforce", "ats": "workday", "ticker": "CRM" },
-  { "slug": "adobe", "ats": "workday", "ticker": "ADBE" },
-  { "slug": "pfizer", "ats": "workday", "ticker": "PFE" },
-  { "slug": "gilead", "ats": "workday", "ticker": "GILD" },
-  { "slug": "zillow", "ats": "workday", "ticker": "ZG" },
-  { "slug": "walmart", "ats": "workday", "ticker": "WMT" },
-  { "slug": "autodesk", "ats": "workday", "ticker": "ADSK" },
-  { "slug": "netflix", "ats": "workday", "ticker": "NFLX" },
-  { "slug": "snapchat", "ats": "workday", "ticker": "SNAP" },
-  { "slug": "snowflake", "ats": "ashby", "ticker": "SNOW" },
-  { "slug": "Jasper%20AI", "ats": "ashby", "ticker": null },
-  { "slug": "notion", "ats": "ashby", "ticker": null },
-  { "slug": "ello", "ats": "ashby", "ticker": null },
-  { "slug": "hadrian-automation", "ats": "ashby", "ticker": null },
-  { "slug": "worldlabs", "ats": "ashby", "ticker": null },
-  { "slug": "cognition", "ats": "ashby", "ticker": null },
-  { "slug": "scribd", "ats": "ashby", "ticker": null },
-  { "slug": "unlearn", "ats": "ashby", "ticker": null },
-  { "slug": "roboflow", "ats": "ashby", "ticker": null },
-  { "slug": "abridge", "ats": "ashby", "ticker": null },
-  { "slug": "decagon", "ats": "ashby", "ticker": null },
-  { "slug": "spearbit", "ats": "ashby", "ticker": null },
-  { "slug": "experian", "ats": "smartrecruiters", "ticker": "EXPN.L" },
-  { "slug": "evolutioniq", "ats": "smartrecruiters", "ticker": null },
-  { "slug": "visa", "ats": "smartrecruiters", "ticker": "V" },
+  { "slug": "spotify", "name": "Spotify", "ats": "lever", "ticker": "SPOT" },
+  { "slug": "palantir", "name": "Palantir", "ats": "lever", "ticker": "PLTR" },
+  { "slug": "zoox", "name": "Zoox", "ats": "lever", "ticker": "AMZN" },
+  {
+    "slug": "woven-by-toyota",
+    "name": "Woven by Toyota",
+    "ats": "lever",
+    "ticker": "TM"
+  },
+  {
+    "slug": "MachinaLabs",
+    "name": "Machina Labs",
+    "ats": "lever",
+    "ticker": null
+  },
+  { "slug": "lendbuzz", "name": "Lendbuzz", "ats": "lever", "ticker": null },
+  { "slug": "hive", "name": "Hive", "ats": "lever", "ticker": null },
+  { "slug": "wisdomai", "name": "WisdomAI", "ats": "lever", "ticker": null },
+  { "slug": "mistral", "name": "Mistral", "ats": "lever", "ticker": null },
+  { "slug": "voleon", "name": "Voleon", "ats": "lever", "ticker": null },
+  { "slug": "plaid", "name": "Plaid", "ats": "lever", "ticker": null },
+  {
+    "slug": "anthropic",
+    "name": "Anthropic",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "augmentcomputing",
+    "name": "Augment Computing",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "skildai-careers",
+    "name": "Skild AI",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "recursionpharmaceuticals",
+    "name": "Recursion Pharmaceuticals",
+    "ats": "greenhouse",
+    "ticker": "RXRX"
+  },
+  {
+    "slug": "benchling",
+    "name": "Benchling",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "10xgenomics",
+    "name": "10x Genomics",
+    "ats": "greenhouse",
+    "ticker": "TXG"
+  },
+  {
+    "slug": "databricks",
+    "name": "Databricks",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "doordashusa",
+    "name": "DoorDash",
+    "ats": "greenhouse",
+    "ticker": "DASH"
+  },
+  {
+    "slug": "scaleai",
+    "name": "Scale AI",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  {
+    "slug": "coreweave",
+    "name": "CoreWeave",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  { "slug": "gleanwork", "name": "Glean", "ats": "greenhouse", "ticker": null },
+  { "slug": "brex", "name": "Brex", "ats": "greenhouse", "ticker": null },
+  {
+    "slug": "samsara",
+    "name": "Samsara",
+    "ats": "greenhouse",
+    "ticker": "IOT"
+  },
+  {
+    "slug": "klaviyocampus",
+    "name": "Klaviyo",
+    "ats": "greenhouse",
+    "ticker": "KVYO"
+  },
+  { "slug": "affirm", "name": "Affirm", "ats": "greenhouse", "ticker": "AFRM" },
+  { "slug": "airbnb", "name": "Airbnb", "ats": "greenhouse", "ticker": "ABNB" },
+  { "slug": "stripe", "name": "Stripe", "ats": "greenhouse", "ticker": null },
+  {
+    "slug": "pinterest",
+    "name": "Pinterest",
+    "ats": "greenhouse",
+    "ticker": "PINS"
+  },
+  { "slug": "roblox", "name": "Roblox", "ats": "greenhouse", "ticker": "RBLX" },
+  {
+    "slug": "appliedintuition",
+    "name": "Applied Intuition",
+    "ats": "greenhouse",
+    "ticker": null
+  },
+  { "slug": "okta", "name": "Okta", "ats": "greenhouse", "ticker": "OKTA" },
+  {
+    "slug": "uberfreight",
+    "name": "Uber Freight",
+    "ats": "greenhouse",
+    "ticker": "UBER"
+  },
+  { "slug": "c3iot", "name": "C3.ai", "ats": "greenhouse", "ticker": "AI" },
+  {
+    "slug": "cvshealth",
+    "name": "CVS Health",
+    "ats": "workday",
+    "ticker": "CVS"
+  },
+  {
+    "slug": "modernatx",
+    "name": "Moderna",
+    "ats": "workday",
+    "ticker": "MRNA"
+  },
+  {
+    "slug": "capitalone",
+    "name": "Capital One",
+    "ats": "workday",
+    "ticker": "COF"
+  },
+  {
+    "slug": "bloomberg",
+    "name": "Bloomberg",
+    "ats": "workday",
+    "ticker": null
+  },
+  { "slug": "nvidia", "name": "Nvidia", "ats": "workday", "ticker": "NVDA" },
+  {
+    "slug": "salesforce",
+    "name": "Salesforce",
+    "ats": "workday",
+    "ticker": "CRM"
+  },
+  { "slug": "adobe", "name": "Adobe", "ats": "workday", "ticker": "ADBE" },
+  { "slug": "pfizer", "name": "Pfizer", "ats": "workday", "ticker": "PFE" },
+  { "slug": "gilead", "name": "Gilead", "ats": "workday", "ticker": "GILD" },
+  { "slug": "zillow", "name": "Zillow", "ats": "workday", "ticker": "ZG" },
+  { "slug": "walmart", "name": "Walmart", "ats": "workday", "ticker": "WMT" },
+  {
+    "slug": "autodesk",
+    "name": "Autodesk",
+    "ats": "workday",
+    "ticker": "ADSK"
+  },
+  { "slug": "netflix", "name": "Netflix", "ats": "workday", "ticker": "NFLX" },
+  {
+    "slug": "snapchat",
+    "name": "Snapchat",
+    "ats": "workday",
+    "ticker": "SNAP"
+  },
+  {
+    "slug": "snowflake",
+    "name": "Snowflake",
+    "ats": "ashby",
+    "ticker": "SNOW"
+  },
+  { "slug": "weave", "name": "Weave", "ats": "ashby", "ticker": "WEAV" },
+  {
+    "slug": "Jasper%20AI",
+    "name": "Jasper AI",
+    "ats": "ashby",
+    "ticker": null
+  },
+  { "slug": "notion", "name": "Notion", "ats": "ashby", "ticker": null },
+  { "slug": "ello", "name": "Ello", "ats": "ashby", "ticker": null },
+  {
+    "slug": "hadrian-automation",
+    "name": "Hadrian Automation",
+    "ats": "ashby",
+    "ticker": null
+  },
+  { "slug": "worldlabs", "name": "World Labs", "ats": "ashby", "ticker": null },
+  {
+    "slug": "Perplexity",
+    "name": "Perplexity",
+    "ats": "ashby",
+    "ticker": null
+  },
+  { "slug": "cognition", "name": "Cognition", "ats": "ashby", "ticker": null },
+  { "slug": "scribd", "name": "Scribd", "ats": "ashby", "ticker": null },
+  { "slug": "unlearn", "name": "Unlearn", "ats": "ashby", "ticker": null },
+  { "slug": "roboflow", "name": "Roboflow", "ats": "ashby", "ticker": null },
+  { "slug": "abridge", "name": "Abridge", "ats": "ashby", "ticker": null },
+  { "slug": "decagon", "name": "Decagon", "ats": "ashby", "ticker": null },
+  { "slug": "spearbit", "name": "Spearbit", "ats": "ashby", "ticker": null },
+  {
+    "slug": "experian",
+    "name": "Experian",
+    "ats": "smartrecruiters",
+    "ticker": "EXPN.L"
+  },
+  {
+    "slug": "evolutioniq",
+    "name": "EvolutionIQ",
+    "ats": "smartrecruiters",
+    "ticker": null
+  },
+  { "slug": "visa", "name": "Visa", "ats": "smartrecruiters", "ticker": "V" },
   {
     "slug": "google",
+    "name": "Google",
     "ats": "google",
     "ticker": "GOOGL",
     "config": {
@@ -67,6 +226,7 @@
   },
   {
     "slug": "amazon",
+    "name": "Amazon",
     "ats": "amazon",
     "ticker": "AMZN",
     "config": {
@@ -79,6 +239,7 @@
   },
   {
     "slug": "uber",
+    "name": "Uber",
     "ats": "uber",
     "ticker": "UBER",
     "config": {
@@ -93,6 +254,7 @@
   },
   {
     "slug": "apple",
+    "name": "Apple",
     "ats": "apple",
     "ticker": "AAPL",
     "config": {
@@ -108,6 +270,7 @@
   },
   {
     "slug": "meta",
+    "name": "Meta",
     "ats": "meta",
     "ticker": "META",
     "config": {
