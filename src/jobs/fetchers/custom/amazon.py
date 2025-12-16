@@ -22,9 +22,17 @@ def fetch_jobs(config, max_pages=None):
     page_count = 0
     url = "https://www.amazon.jobs/en/search.json"
     
+    SAFE_MAX_PAGES = 2000
+    seen_ids = set()
+    seen_page_signatures = set()
+    
     while True:
+        # 1. Safety Checks
         if max_pages and page_count >= max_pages:
             print(f"Reached max_pages {max_pages}. Stopping.")
+            break
+        if page_count >= SAFE_MAX_PAGES:
+            print(f"Reached safe limit {SAFE_MAX_PAGES}. Stopping.")
             break
             
         page_count += 1
@@ -49,9 +57,24 @@ def fetch_jobs(config, max_pages=None):
             if not jobs_list:
                 print("No jobs returned. Stopping.")
                 break
-                
+            
+            # 2. Duplicate Page Check
+            current_page_ids = [str(item.get("id_icims") or item.get("id")) for item in jobs_list]
+            page_sig = tuple(current_page_ids)
+            if page_sig in seen_page_signatures:
+                print(f"Duplicate page signature at offset {offset}. API looping. Stopping.")
+                break
+            seen_page_signatures.add(page_sig)
+
+            # 3. New Jobs Check
+            new_jobs_on_page = 0
             for item in jobs_list:
                 job_id = str(item.get("id_icims") or item.get("id"))
+                
+                if job_id not in seen_ids:
+                    seen_ids.add(job_id)
+                    new_jobs_on_page += 1
+
                 title = item.get("title")
                 
                 locs = []
@@ -91,6 +114,10 @@ def fetch_jobs(config, max_pages=None):
                 }
                 all_jobs.append(job)
             
+            if new_jobs_on_page == 0:
+                print(f"Offset {offset} returned {len(jobs_list)} items but all were seen before. Stopping.")
+                break
+                
             offset += limit
             
             if offset >= hits:

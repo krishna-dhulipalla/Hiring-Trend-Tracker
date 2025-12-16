@@ -27,9 +27,16 @@ def fetch_jobs(config, max_pages=None):
     
     base_url = url
     
+    SAFE_MAX_PAGES = 2000
+    seen_ids = set()
+    seen_page_signatures = set()
+    
     while True:
         if max_pages and page > max_pages:
             print(f"Reached max_pages {max_pages}. Stopping.")
+            break
+        if page >= SAFE_MAX_PAGES:
+            print(f"Reached safe limit {SAFE_MAX_PAGES}. Stopping.")
             break
             
         target_url = f"{base_url}&page={page}"
@@ -54,6 +61,9 @@ def fetch_jobs(config, max_pages=None):
             print(f"Found {len(cards)} cards on page {page}.")
             
             page_jobs = []
+            page_ids = []
+            new_jobs_on_page = 0
+            
             for card in cards:
                 title_elem = card.select_one('h3.QJPWVe')
                 title = title_elem.get_text(strip=True) if title_elem else None
@@ -79,6 +89,12 @@ def fetch_jobs(config, max_pages=None):
                         job_id = str(abs(hash(item_url)))
                     else:
                         job_id = str(abs(hash(title + str(raw_locs))))
+                
+                page_ids.append(job_id)
+                
+                if job_id not in seen_ids:
+                    seen_ids.add(job_id)
+                    new_jobs_on_page += 1
 
                 job = {
                     "job_id": job_id,
@@ -103,10 +119,17 @@ def fetch_jobs(config, max_pages=None):
                 print("No jobs extracted from cards. Stopping.")
                 break
 
-            if all_jobs and page_jobs[0]['job_id'] == all_jobs[-len(page_jobs)]['job_id']:
-                 print("Duplicate page detected (first item match). Stopping.")
-                 break
-                 
+            # Duplicate Page Check
+            page_sig = tuple(page_ids)
+            if page_sig in seen_page_signatures:
+                print(f"Duplicate page signature on page {page}. Stopping.")
+                break
+            seen_page_signatures.add(page_sig)
+            
+            if new_jobs_on_page == 0:
+                print(f"Page {page} returned {len(page_jobs)} items but all were seen before. Stopping.")
+                break
+
             all_jobs.extend(page_jobs)
             
             if len(cards) < 20:

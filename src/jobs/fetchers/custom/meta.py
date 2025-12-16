@@ -122,8 +122,15 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
     except Exception:
         req_int = 1
 
+    SAFE_MAX_PAGES = 2000
+    seen_ids = set()
+    seen_page_signatures = set()
+
     while has_next:
         if max_pages and page_count >= max_pages:
+            break
+        if page_count >= SAFE_MAX_PAGES:
+            print(f"Reached safe limit {SAFE_MAX_PAGES}. Stopping.")
             break
 
         page_count += 1
@@ -140,10 +147,14 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
 
         if resp.status_code != 200:
             print(f"Error: HTTP {resp.status_code}")
-            print("Body preview:", resp.text[:900])
+            # print("Body preview:", resp.text[:900])
             break
 
-        data = json.loads(_strip_for_while(resp.text))
+        try:
+            data = json.loads(_strip_for_while(resp.text))
+        except Exception as e:
+            print(f"JSON Parse Error: {e}")
+            break
 
         if "errors" in data:
             print("GraphQL errors:", data["errors"])
@@ -151,13 +162,24 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
         items, page_info = _parse_items_and_page_info(data)
         if not items:
             print("No items in response. Stopping.")
-            with open("meta_debug.txt", "w", encoding="utf-8") as f:
-                f.write(f"Debug - Data keys: {list(data.get('data', {}).keys())}\n")
-                f.write(f"Debug - Full Response: {json.dumps(data)}\n")
             break
 
+        # Duplicate Page Check
+        current_page_ids = [str(item.get("id")) for item in items]
+        page_sig = tuple(current_page_ids)
+        if page_sig in seen_page_signatures:
+            print(f"Duplicate page signature on page {page_count}. Stopping.")
+            break
+        seen_page_signatures.add(page_sig)
+        
+        new_jobs_on_page = 0
         for item in items:
             job_id = item.get("id")
+            
+            if job_id not in seen_ids:
+                seen_ids.add(job_id)
+                new_jobs_on_page += 1
+
             title = item.get("title")
 
             loc_raw = item.get("locations") or []
@@ -191,6 +213,10 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
                     "fetched_at": None,
                 }
             )
+            
+        if new_jobs_on_page == 0:
+            print(f"Page {page_count} returned {len(items)} items but all were seen before. Stopping.")
+            break
 
         has_next = bool(page_info.get("has_next_page", False))
         end_cursor = page_info.get("end_cursor")

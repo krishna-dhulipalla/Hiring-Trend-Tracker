@@ -123,12 +123,18 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
 
     out: List[Dict[str, Any]] = []
     seen_ids: set[str] = set()
+    SAFE_MAX_PAGES = 2000
+    seen_ids = set()
+    seen_page_signatures = set()
     page = 0
 
     while True:
         page += 1
         if max_pages and page > max_pages:
             print(f"Reached max_pages {max_pages}. Stopping.")
+            break
+        if page >= SAFE_MAX_PAGES:
+            print(f"Reached safe limit {SAFE_MAX_PAGES}. Stopping.")
             break
             
         print(f"Fetching Apple page {page}...")
@@ -156,22 +162,31 @@ def fetch_jobs(config: Dict[str, Any], max_pages: Optional[int] = None) -> List[
         if not items:
             break
 
-        # Defensive stop in case the API starts repeating the same page forever
+        # Generate Page Signature
         page_ids = []
         for item in items:
-            # Prefer stable IDs:
-            # positionId is numeric, reqId is PIPE-..., id is PIPE-... too.
             position_id = str(item.get("positionId") or "").strip() or None
             req_id = str(item.get("reqId") or item.get("id") or "").strip() or None
             job_key = position_id or req_id
             if job_key:
                 page_ids.append(job_key)
-
-        # If nothing new, stop
-        if page_ids and all(pid in seen_ids for pid in page_ids):
+        
+        page_sig = tuple(page_ids)
+        if page_sig in seen_page_signatures:
+            print(f"Duplicate page signature on page {page}. Stopping.")
             break
+        seen_page_signatures.add(page_sig)
+
+        # No New Jobs Check
+        new_jobs_on_page = 0
         for pid in page_ids:
-            seen_ids.add(pid)
+            if pid not in seen_ids:
+                seen_ids.add(pid)
+                new_jobs_on_page += 1
+        
+        if new_jobs_on_page == 0:
+            print(f"Page {page} returned {len(items)} items but all were seen before. Stopping.")
+            break
 
         for item in items:
             position_id = str(item.get("positionId") or "").strip() or None
