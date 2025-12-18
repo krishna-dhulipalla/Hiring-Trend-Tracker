@@ -1,6 +1,6 @@
 
 import logging
-from src.news.fetchers.gnews import GNewsFetcher
+from src.news.fetchers.gnews import GNewsFetcher, GNewsQuotaExceeded
 from src.news.fetchers.finnhub import FinnhubFetcher
 from src.news.processor import NewsProcessor
 from src.news.models import init_db
@@ -25,6 +25,7 @@ def run(run_timestamp, companies, days_back=7, do_init_db=False):
         "failures": 0
     }
 
+    gnews_enabled = True
     for company in companies:
         slug = company.get("slug")
         name = company.get("name") or slug.replace("-", " ").title()
@@ -34,17 +35,21 @@ def run(run_timestamp, companies, days_back=7, do_init_db=False):
         stats["processed"] += 1
 
         # 1. GNews
-        try:
-            articles = gnews.fetch_company_news(name, days_back=days_back)
-            if articles:
-                count = processor.process_and_store(articles, slug, "gnews", company_name=name)
-                if count > 0:
-                    logger.info(f"  GNews: +{count} new")
-                stats["gnews_fetched"] += len(articles)
-                total_new += count
-        except Exception as e:
-            logger.error(f"  GNews failed for {slug}: {e}")
-            stats["failures"] += 1
+        if gnews_enabled:
+            try:
+                articles = gnews.fetch_company_news(name, days_back=days_back)
+                if articles:
+                    count = processor.process_and_store(articles, slug, "gnews", company_name=name)
+                    if count > 0:
+                        logger.info(f"  GNews: +{count} new")
+                    stats["gnews_fetched"] += len(articles)
+                    total_new += count
+            except GNewsQuotaExceeded as e:
+                gnews_enabled = False
+                logger.error(f"  GNews quota exhausted; skipping remaining companies: {e}")
+            except Exception as e:
+                logger.error(f"  GNews failed for {slug}: {e}")
+                stats["failures"] += 1
 
         # 2. Finnhub
         if ticker:

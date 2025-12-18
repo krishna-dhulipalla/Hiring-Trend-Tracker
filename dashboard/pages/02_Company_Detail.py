@@ -210,7 +210,10 @@ if not df_diff.empty:
     line = alt.Chart(chart_df).mark_line(color="#94a3b8", strokeWidth=2).encode(
         x="date:T",
         y=alt.Y("total_open:Q", axis=alt.Axis(title="Active Roles", titleColor="#64748b")),
-        tooltip=alt.Tooltip(["date:T", "total_open"], title="Total Open")
+        tooltip=[
+            alt.Tooltip("date:T", title="Date"),
+            alt.Tooltip("total_open:Q", title="Total Open"),
+        ],
     )
     
     # --- Layer 3: News Icons ---
