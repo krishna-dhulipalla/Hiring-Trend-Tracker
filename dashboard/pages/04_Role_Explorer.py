@@ -54,7 +54,7 @@ with st.spinner(f"Scanning & scoring roles from last {days_back} days..."):
                 
         match = calculate_role_match_score(job, days_ago_added=days_ago)
         
-        # FIX LOCATION RENDER: Ensure simple string
+        # Location: ensure human-friendly string (avoid raw dict rendering)
         loc_raw = job.get("locations", [])
         loc_str = ""
         if isinstance(loc_raw, list):
@@ -62,7 +62,14 @@ with st.spinner(f"Scanning & scoring roles from last {days_back} days..."):
             parts = []
             for l in loc_raw:
                 if isinstance(l, dict):
-                    parts.append(l.get("name", str(l)))
+                    raw = l.get("raw")
+                    name = l.get("name") or raw
+                    if not name:
+                        city = l.get("city")
+                        state = l.get("state")
+                        cc = l.get("country_code") or l.get("country")
+                        name = ", ".join([p for p in [city, state, cc] if p]) or str(l)
+                    parts.append(name)
                 else:
                     parts.append(str(l))
             loc_str = ", ".join(parts[:2])
@@ -104,24 +111,39 @@ if search_query:
 df = df.sort_values(by=["match_score", "_date_added"], ascending=[False, False])
 
 # --- Display ---
-st.caption(f"Showing **{len(df)}** matches.")
+total = len(df)
+st.caption(f"Showing **{total}** matches.")
 
-if not df.empty:
+page_cols = st.columns([1, 1, 3])
+with page_cols[0]:
+    page_size = st.selectbox("Rows per page", [50, 100, 200], index=1)
+with page_cols[1]:
+    max_pages = max(1, (total + page_size - 1) // page_size)
+    page = st.number_input("Page", min_value=1, max_value=max_pages, value=1, step=1)
+
+start = (int(page) - 1) * int(page_size)
+end = min(start + int(page_size), total)
+st.caption(f"Rows {start + 1}-{end} of {total}")
+
+df_page = df.iloc[start:end].copy()
+
+if not df_page.empty:
     st.dataframe(
-        df,
-        column_order=["match_label", "match_score", "title", "_company", "_date_added", "location_clean", "url"],
+        df_page,
+        column_order=["match_label", "match_score", "url", "title", "_company", "_date_added", "location_clean", "match_reasons"],
         column_config={
             "match_label": st.column_config.TextColumn("Fit", help="Strong/Good/Okay/Weak"),
             "match_score": st.column_config.ProgressColumn("Score", format="%d", min_value=-50, max_value=50),
+            "url": st.column_config.LinkColumn("Apply", display_text="Open"),
             "title": "Role",
             "_company": "Company",
             "_date_added": "Added",
             "location_clean": "Location",
-            "url": st.column_config.LinkColumn("Apply", display_text="LINK")
+            "match_reasons": st.column_config.TextColumn("Why", help="Matched keywords/seniority/location"),
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
-        height=800
+        height=720,
     )
 else:
     st.write("No matching jobs found with current filters.")

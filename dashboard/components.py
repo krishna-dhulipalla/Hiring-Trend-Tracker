@@ -125,7 +125,7 @@ def render_timeline_chart(df, x_col, y_col, category_col=None, title="Title"):
             y=alt.Y(y_col, title=title)
         )
         
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 def render_job_card(job, type="added"):
     """

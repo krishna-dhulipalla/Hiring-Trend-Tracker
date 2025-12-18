@@ -1,282 +1,290 @@
 import streamlit as st
 import altair as alt
-import sys
-import os
-from datetime import datetime, timedelta
 import pandas as pd
-import math
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from datetime import datetime, timedelta
 
 import data_access as da
 import components as ui
-from scoring import classify_company_momentum
 
-st.set_page_config(page_title="Company Detail", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="Company Intelligence", page_icon="🏢", layout="wide")
 ui.apply_custom_css()
 
-# --- Data Loading (Global Helpers) ---
-rich_companies = da.get_all_companies_rich()
-if not rich_companies:
+WEEKDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def _weekday_name(i: int | None) -> str:
+    if i is None:
+        return "—"
+    if 0 <= int(i) <= 6:
+        return WEEKDAY[int(i)]
+    return "—"
+
+
+def _safe_int(v, default=0) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+def _latest_date(*dfs: pd.DataFrame) -> str | None:
+    dates = []
+    for df in dfs:
+        if df is None or df.empty or "date" not in df.columns:
+            continue
+        try:
+            dates.append(str(df["date"].max()))
+        except Exception:
+            continue
+    return max(dates) if dates else None
+
+
+rich = da.get_all_companies_rich()
+if not rich:
     st.error("No companies found.")
     st.stop()
 
-# Sort: Starred first, then name
-rich_companies.sort(key=lambda x: (not x["is_starred"], x["name"]))
-slugs = [c["slug"] for c in rich_companies]
-slug_map = {c["slug"]: c for c in rich_companies}
+rich.sort(key=lambda x: (not x.get("is_starred", False), x.get("name", "")))
+slug_map = {c["slug"]: c for c in rich}
+slugs = list(slug_map.keys())
 
-# --- State Management ---
 if "selected_company" not in st.session_state:
-    st.session_state["selected_company"] = slugs[0] if slugs else None
+    st.session_state["selected_company"] = slugs[0]
 elif st.session_state["selected_company"] not in slugs:
-    st.session_state["selected_company"] = slugs[0] if slugs else None
+    st.session_state["selected_company"] = slugs[0]
 
-def format_func(slug):
-    c = slug_map[slug]
-    prefix = "⭐ " if c["is_starred"] else ""
-    return f"{prefix}{c['name']}"
 
-# Title
-col_title, col_sel = st.columns([2, 2])
-with col_title:
-    st.title("Company Detail 🏢")
-
-with col_sel:
+with st.sidebar:
+    st.header("Company")
     selected_slug = st.selectbox(
-        "Select Company", 
-        slugs, 
-        format_func=format_func,
-        key="selected_company"
+        "Select company",
+        slugs,
+        format_func=lambda s: ("★ " if slug_map[s].get("is_starred") else "") + slug_map[s].get("name", s),
+        key="selected_company",
     )
+    days_choice = st.selectbox("Window", [30, 90, 180], index=0)
+    lookback_days = st.selectbox("Signal lookback", [7, 14], index=0)
 
-# --- Controls ---
-c_star, c_days, c_pad = st.columns([1, 1, 3])
-with c_star:
-    is_starred = slug_map[selected_slug]["is_starred"]
+end_date = datetime.now().strftime("%Y-%m-%d")
+start_date = (datetime.now() - timedelta(days=int(days_choice))).strftime("%Y-%m-%d")
+
+# Star toggle
+top_l, top_r = st.columns([3, 1])
+with top_l:
+    st.title(f"{slug_map[selected_slug].get('name', selected_slug)}")
+with top_r:
+    is_starred = slug_map[selected_slug].get("is_starred", False)
     btn_label = "Unstar" if is_starred else "Star"
-    if st.button(btn_label, use_container_width=True):
+    if st.button(btn_label, width="stretch"):
         da.toggle_star(selected_slug)
         st.rerun()
 
-with c_days:
-    days_choice = st.selectbox("Lookback", [30, 90, 180], index=0)
-
-end_date = datetime.now().strftime("%Y-%m-%d")
-start_date = (datetime.now() - timedelta(days=days_choice)).strftime("%Y-%m-%d")
-
-# --- Fetch Data ---
+# Data
 df_diff = da.get_job_diffs_daily(company_slug=selected_slug, start_date=start_date, end_date=end_date)
+df_open = da.get_open_now_daily(company_slug=selected_slug, start_date=start_date, end_date=end_date)
+df_sig = da.get_company_signals(company_slug=selected_slug, start_date=start_date, end_date=end_date, lookback_days=int(lookback_days))
 df_news = da.get_company_news_daily(company_slug=selected_slug, start_date=start_date, end_date=end_date)
-open_now = da.get_open_job_count(selected_slug) 
 
-# --- Header Metrics ---
-total_added = df_diff["added_count"].sum() if not df_diff.empty else 0
-total_removed = df_diff["removed_count"].sum() if not df_diff.empty else 0
-net = total_added - total_removed
-senior_added = df_diff["senior_plus_added_count"].sum() if not df_diff.empty else 0
+as_of_date = _latest_date(df_diff, df_open, df_sig) or end_date
 
-momentum = classify_company_momentum({
-    "added_total": total_added,
-    "net_change": net
-}, open_now_count=open_now)
+# Header: latest signal summary
+latest_sig = df_sig.iloc[0].to_dict() if not df_sig.empty else {}
+label = latest_sig.get("momentum_label") or "—"
+state = latest_sig.get("momentum_state") or "—"
+score = latest_sig.get("momentum_score")
+score_str = f"{float(score):.0f}" if score is not None else "—"
 
-st.divider()
-st.markdown(f"### {slug_map[selected_slug]['name']} • {momentum}")
+st.caption(f"As of {as_of_date} • {label} • {state} • score {score_str}")
 
-m1, m2, m3, m4 = st.columns(4)
-with m1: ui.render_metric_card("Open Jobs", open_now, delta_color="normal")
-with m2: ui.render_metric_card("Added", total_added, delta_color="normal")
-with m3: ui.render_metric_card("Net Change", net, delta_color="normal")
-with m4: ui.render_metric_card("Senior+ Added", senior_added)
+# ------------------------------------------------------------
+# Momentum timeline (open roles + adds/removes + rolling net)
+# ------------------------------------------------------------
+st.subheader("Momentum Timeline")
 
-# --- Spike Button ---
-if not df_diff.empty:
-    max_added_row = df_diff.loc[df_diff["added_count"].idxmax()]
-    max_count = max_added_row["added_count"]
-    if max_count > 0:
-        max_date = str(max_added_row["date"])
-        def go_to_spike():
-            st.session_state["diff_viewer_slug"] = selected_slug
-            st.session_state["diff_viewer_date"] = max_date
-        
-        st.caption(f"Biggest hiring spike: {max_date} (+{max_count})")
-        if st.button("Inspect Spike", on_click=go_to_spike):
-            st.switch_page("pages/03_Diff_Viewer.py")
-
-st.divider()
-
-# --- Integrated Timeline Chart ---
-st.subheader("Hiring Activity & News")
-
-if not df_diff.empty:
-    chart_df = df_diff.copy()
-    chart_df["date"] = pd.to_datetime(chart_df["date"])
-    chart_df = chart_df.sort_values("date", ascending=True)
-    
-    if "changed_count" not in chart_df.columns:
-        chart_df["changed_count"] = 0
-        
-    # 1. Back-calculate Total Open History (Line Layer)
-    total_net_in_window = (chart_df["added_count"] - chart_df["removed_count"]).sum()
-    initial_open = open_now - total_net_in_window
-    chart_df["daily_net"] = chart_df["added_count"] - chart_df["removed_count"]
-    chart_df["total_open"] = initial_open + chart_df["daily_net"].cumsum()
-    
-    # 2. Prepare Stacked Data (Negative Removed)
-    plot_data = []
-    # Helper to track max height for icon placement
-    # We map date -> height
-    height_map = {}
-    
-    for _, row in chart_df.iterrows():
-        d = row["date"]
-        # Calculate positive height for stacking icons
-        pos_height = row["added_count"] + row["changed_count"]
-        # If no positive bars, we might want to float it above 0 or above the line?
-        # Let's verify line height.
-        line_height = row["total_open"]
-        # Place icon a bit above the highest element (Bar or Line)
-        # Actually, standard UX: Place above the positive stack if exists, else 0.
-        icon_y = max(pos_height, 0)
-        height_map[d] = icon_y
-        
-        plot_data.append({"date": d, "type": "Added", "count": row["added_count"], "order": 1})
-        plot_data.append({"date": d, "type": "Changed", "count": row["changed_count"], "order": 2})
-        plot_data.append({"date": d, "type": "Removed", "count": -row["removed_count"], "order": 0})
-        
-    df_plot = pd.DataFrame(plot_data)
-    
-    # 3. Prepare News Icons
-    icon_data = []
-    if not df_news.empty:
-        for _, row in df_news.iterrows():
-            if row["article_count"] > 0:
-                dt = pd.to_datetime(row["date"])
-                if dt in height_map:
-                    base_y = height_map[dt]
-                else:
-                    base_y = 0 # Should match date exists in chart_df mostly
-                
-                # Determine Category & Icon
-                # Simple keyword matching on headline or major_event_types
-                # Categories: Layoff, Funding, AI, Earnings, General
-                hl = (row["top_headline_title"] or "").lower()
-                evt = (row["major_event_types"] or "").lower()
-                
-                category = "General News"
-                icon = "📰"
-                
-                if "layoff" in hl or "reduction" in hl or "cut" in hl:
-                    category = "Layoff/Cuts"
-                    icon = "📉"
-                elif "funding" in hl or "raise" in hl or "series" in hl:
-                    category = "Funding"
-                    icon = "💰"
-                elif "ai " in hl or "intelligence" in hl or "gpt" in hl:
-                    category = "AI Update"
-                    icon = "🤖"
-                elif "earning" in hl or "revenue" in hl or "profit" in hl:
-                    category = "Earnings"
-                    icon = "📊"
-                
-                # Offset Y slightly for visual clearance
-                # We need to render this.
-                
-                icon_data.append({
-                    "date": dt,
-                    "category": category, # For Legend
-                    "icon": icon,         # For Text Mark
-                    "y_pos": base_y + (base_y * 0.1) + 5, # 10% + 5px buffer
-                    "headline": row["top_headline_title"],
-                    "url": row["top_headline_url"]
-                })
-
-    df_icons = pd.DataFrame(icon_data)
-    
-    # --- Layer 1: Stacked Bars ---
-    base = alt.Chart(df_plot).encode(x=alt.X("date:T", axis=alt.Axis(format="%b %d", title=None)))
-    
-    bars = base.mark_bar().encode(
-        y=alt.Y("count:Q", title=None), # Axis title via line or unified?
-        color=alt.Color("type:N", 
-                        scale=alt.Scale(domain=["Added", "Changed", "Removed"], 
-                                      range=["#10b981", "#f59e0b", "#ef4444"]),
-                        legend=alt.Legend(title="Hiring Activity", orient="top")),
-        tooltip=["date:T", "type", "count"]
-    )
-    
-    # --- Layer 2: Open Jobs Line ---
-    line = alt.Chart(chart_df).mark_line(color="#94a3b8", strokeWidth=2).encode(
-        x="date:T",
-        y=alt.Y("total_open:Q", axis=alt.Axis(title="Active Roles", titleColor="#64748b")),
-        tooltip=[
-            alt.Tooltip("date:T", title="Date"),
-            alt.Tooltip("total_open:Q", title="Total Open"),
-        ],
-    )
-    
-    # --- Layer 3: News Icons ---
-    if not df_icons.empty:
-        # We use mark_text for Emojis
-        # We need the 'category' for Legend?? 
-        # Altair mark_text doesn't support 'color' legend easily if we use literal colored emojis.
-        # But we can use a circle mark behind it for legend?
-        # User asked for Legend max 5.
-        
-        # Let's use mark_point with custom shapes or just circles mapped to category colors
-        # and render the emoji as labels?
-        # Simpler: Just use Colored Circles for Legend and Emoji for Text.
-        
-        # Actually, user wants "icons for markers". Emojis are perfect.
-        # We can map Category -> Emoji in the legend by using a dummy layer?
-        # Let's just use Text Mark with 'text' channel mapped to 'icon'.
-        # And use 'color' channel mapped to 'category' to force a legend, even if text manages color itself (emojis have color).
-        # Actually text color overrides emoji color in some renderers.
-        # Let's just assume Emojis stand alone and add a manual usage note/legend if needed.
-        # OR: Use mark_point(shape) mapped to category.
-        
-        # User requested: "icons will stack top over the bar... clickable"
-        
-        icons = alt.Chart(df_icons).mark_text(size=20, baseline="bottom").encode(
-            x="date:T",
-            y=alt.Y("y_pos:Q"),
-            text="icon", # The emoji
-            href="url",
-            tooltip=["date:T", "category", "headline"]
-        )
-        
-        # To get a Legend for Categories:
-        # We overlay invisible points?
-        # Or just let the tooltip handle it. User asked for Legend.
-        # Let's add an invisible Point layer mapped to Category to generate the Legend.
-        
-        legend_gen = alt.Chart(df_icons).mark_point(opacity=0).encode(
-            x="date:T",
-            y="y_pos:Q",
-            color=alt.Color("category:N", legend=alt.Legend(title="News Type", orient="top", symbolType="circle"))
-        )
-        
-        combined = alt.layer(bars, line, legend_gen, icons).resolve_scale(y="independent").properties(height=400)
-    else:
-        combined = alt.layer(bars, line).resolve_scale(y="independent").properties(height=400)
-        
-    st.altair_chart(combined.interactive(), use_container_width=True)
-
+if df_diff.empty and df_open.empty:
+    st.info("No hiring history found for this window yet.")
 else:
-    st.info("No hiring activity data found for selected window.")
+    # Normalize dates
+    if not df_diff.empty:
+        df_diff = df_diff.copy()
+        df_diff["date"] = pd.to_datetime(df_diff["date"])
+        df_diff["net"] = df_diff["added_count"] - df_diff["removed_count"]
+        df_diff = df_diff.sort_values("date")
+        df_diff["rolling_net_7d"] = df_diff["net"].rolling(7, min_periods=1).sum()
 
-# --- News List (Detailed) ---
-st.subheader("News Feed")
-if not df_news.empty:
-     active_news = df_news[df_news["article_count"] > 0].sort_values("date", ascending=False)
-     if not active_news.empty:
-         for _, row in active_news.iterrows():
-             with st.container(border=True):
-                 st.markdown(f"**{row['date']}**")
-                 if row["top_headline_url"]:
-                     st.markdown(f"[{row['top_headline_title']}]({row['top_headline_url']})")
-                 else:
-                     st.write(row['top_headline_title'])
-     else:
-         st.write("No news found.")
+    if not df_open.empty:
+        df_open = df_open.copy()
+        df_open["date"] = pd.to_datetime(df_open["date"])
+        df_open = df_open.sort_values("date")
+
+    base = alt.Chart(df_diff).encode(x=alt.X("date:T", axis=alt.Axis(title=None, format="%b %d")))
+
+    bars_df = pd.DataFrame()
+    if not df_diff.empty:
+        bars_df = pd.concat(
+            [
+                df_diff[["date", "added_count"]].rename(columns={"added_count": "count"}).assign(kind="Added"),
+                df_diff[["date", "removed_count"]].rename(columns={"removed_count": "count"}).assign(kind="Removed"),
+            ],
+            ignore_index=True,
+        )
+        bars_df.loc[bars_df["kind"] == "Removed", "count"] *= -1
+
+    bars = alt.Chart(bars_df).mark_bar().encode(
+        x=alt.X("date:T", axis=alt.Axis(title=None, format="%b %d")),
+        y=alt.Y("count:Q", axis=alt.Axis(title="Adds / Removes (daily)", orient="left")),
+        color=alt.Color("kind:N", scale=alt.Scale(domain=["Added", "Removed"], range=["#10b981", "#ef4444"]), legend=alt.Legend(orient="top")),
+        tooltip=["date:T", "kind:N", "count:Q"],
+    )
+
+    layers = [bars]
+
+    if not df_open.empty:
+        open_line = alt.Chart(df_open).mark_line(color="#94a3b8", strokeWidth=2).encode(
+            x="date:T",
+            y=alt.Y(
+                "open_now_count:Q",
+                axis=alt.Axis(title="Open roles", orient="right", titleColor="#94a3b8", labelColor="#cbd5e1"),
+            ),
+            tooltip=[alt.Tooltip("date:T", title="Date"), alt.Tooltip("open_now_count:Q", title="Open now")],
+        )
+        layers.append(open_line)
+
+    if not df_diff.empty:
+        roll = alt.Chart(df_diff).mark_line(color="#f59e0b", strokeWidth=2).encode(
+            x="date:T",
+            y=alt.Y(
+                "rolling_net_7d:Q",
+                axis=alt.Axis(
+                    title="Rolling net (7d)",
+                    orient="right",
+                    offset=60,
+                    titleColor="#f59e0b",
+                    labelColor="#cbd5e1",
+                ),
+            ),
+            tooltip=[alt.Tooltip("date:T", title="Date"), alt.Tooltip("rolling_net_7d:Q", title="Rolling net (7d)")],
+        )
+        layers.append(roll)
+
+    chart = alt.layer(*layers).resolve_scale(y="independent").properties(height=360)
+    st.altair_chart(chart.interactive(), width="stretch")
+
+    # Quick stats
+    open_now_latest = _safe_int(df_open["open_now_count"].iloc[0], 0) if not df_open.empty else 0
+    added_total = _safe_int(df_diff["added_count"].sum(), 0) if not df_diff.empty else 0
+    removed_total = _safe_int(df_diff["removed_count"].sum(), 0) if not df_diff.empty else 0
+    net_total = added_total - removed_total
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Open now", open_now_latest)
+    m2.metric("Added (window)", added_total)
+    m3.metric("Removed (window)", removed_total)
+    m4.metric("Net (window)", net_total)
+
+# ------------------------------------------------------------
+# Lifespan + durability
+# ------------------------------------------------------------
+st.divider()
+st.subheader("Lifespan (Role Durability)")
+
+life = da.get_company_lifespan(selected_slug, as_of_date, window_days=180)
+life_row = life.iloc[0].to_dict() if not life.empty else {}
+
+lc1, lc2, lc3, lc4 = st.columns(4)
+lc1.metric("Median days open", _safe_int(life_row.get("median_days"), 0) if life_row.get("median_days") is not None else "—")
+lc2.metric("P25 / P75", f"{_safe_int(life_row.get('p25_days'), 0)} / {_safe_int(life_row.get('p75_days'), 0)}" if life_row else "—")
+lc3.metric("% close ≤7d", f"{(float(life_row.get('pct_close_within_7d') or 0)*100):.0f}%" if life_row else "—")
+lc4.metric("% open >30d", f"{(float(life_row.get('pct_open_gt_30d') or 0)*100):.0f}%" if life_row else "—")
+
+bucket_cols = [
+    ("0–3d", "age_bucket_0_3"),
+    ("4–7d", "age_bucket_4_7"),
+    ("8–14d", "age_bucket_8_14"),
+    ("15–30d", "age_bucket_15_30"),
+    ("30+d", "age_bucket_30_plus"),
+]
+if life_row:
+    bdf = pd.DataFrame([{"bucket": name, "count": _safe_int(life_row.get(col), 0)} for name, col in bucket_cols])
+    bchart = alt.Chart(bdf).mark_bar(color="#6366f1").encode(
+        x=alt.X("bucket:N", title="Age bucket (open roles)"),
+        y=alt.Y("count:Q", title="Count"),
+        tooltip=["bucket", "count"],
+    ).properties(height=220)
+    st.altair_chart(bchart, width="stretch")
+else:
+    st.caption("No lifecycle history yet (run scraper more days, or run backfill).")
+
+with st.expander("Lifespan by discipline (optional)", expanded=False):
+    by_disc = da.get_company_lifespan_by_discipline(selected_slug, as_of_date, window_days=180)
+    if by_disc.empty:
+        st.caption("Not enough closed-role history to compute discipline lifespans yet.")
+    else:
+        st.dataframe(by_disc, width="stretch", hide_index=True)
+
+with st.expander("Lifespan by seniority (optional)", expanded=False):
+    by_sen = da.get_company_lifespan_by_seniority(selected_slug, as_of_date, window_days=180)
+    if by_sen.empty:
+        st.caption("Not enough closed-role history to compute seniority lifespans yet.")
+    else:
+        st.dataframe(by_sen, width="stretch", hide_index=True)
+
+# ------------------------------------------------------------
+# Timing + signals
+# ------------------------------------------------------------
+st.divider()
+st.subheader("Timing Intelligence")
+
+t1, t2, t3 = st.columns([2, 2, 3])
+t1.metric("Best posting day", _weekday_name(latest_sig.get("best_post_weekday")))
+t2.metric("Best removal day", _weekday_name(latest_sig.get("best_remove_weekday")))
+t3.metric("Apply window hint", latest_sig.get("timing_hint") or "—")
+
+st.caption(latest_sig.get("mover_reason") or "")
+
+st.subheader("Signal Feed")
+st.caption("Only signal days (not a raw news list).")
+
+if df_sig.empty:
+    st.info("No signals computed yet for this company.")
+else:
+    feed = df_sig[df_sig["is_mover"] == 1].copy()
+    if feed.empty:
+        st.caption("No mover-level signals in this window.")
+    else:
+        for _, r in feed.head(12).iterrows():
+            dt = r.get("date")
+            hdr = f"{dt}: {r.get('momentum_label')} • {r.get('momentum_state')} (score {float(r.get('momentum_score') or 0):.0f})"
+            st.markdown(f"**{hdr}**")
+            st.caption(r.get("mover_reason") or "")
+            if r.get("headline_title") and r.get("headline_url"):
+                st.markdown(f"[{r.get('headline_title')}]({r.get('headline_url')})")
+            st.divider()
+
+# ------------------------------------------------------------
+# News context (only near spikes/major events)
+# ------------------------------------------------------------
+st.subheader("News Context (signal-linked)")
+
+if df_news.empty:
+    st.caption("No aggregated news found for this window.")
+else:
+    df_news = df_news.copy()
+    df_news["date"] = pd.to_datetime(df_news["date"])
+    df_news = df_news.sort_values("date", ascending=False)
+
+    # Keep only major events or days with headlines (limit noise)
+    df_news = df_news[(df_news["has_major_event"] == 1) | (df_news["article_count"] > 0)]
+    if df_news.empty:
+        st.caption("No major/summary headlines found for this window.")
+    else:
+        for _, r in df_news.head(10).iterrows():
+            title = r.get("top_headline_title")
+            url = r.get("top_headline_url")
+            if not title:
+                continue
+            dt = str(r.get("date").date())
+            prefix = "Major event" if r.get("has_major_event") else "Headline"
+            st.markdown(f"**{dt} • {prefix}**")
+            st.markdown(f"[{title}]({url})" if url else title)
+            st.caption(r.get("major_event_types") or "")

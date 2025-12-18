@@ -6,6 +6,7 @@ from src.jobs.fetchers import greenhouse, lever, ashby, smartrecruiters, workday
 from src.jobs.fetchers.custom import google, meta, amazon, uber, apple
 from src.utils import is_valid_job, is_us_eligible
 from src.jobs import diff
+from src.analytics.lifespan import sync_open_now, sync_job_lifecycle
 
 def get_fetcher(ats_name):
     """Returns the fetcher module based on ATS name."""
@@ -96,7 +97,7 @@ def run(run_timestamp, companies):
                 snapshot_dir = os.path.dirname(filtered_path)
                 diff_dir = f"data/diffs/{ats}/{slug}"
                 
-                diff.generate_diff(
+                diff_path = diff.generate_diff(
                     company_slug=slug,
                     current_ts=run_timestamp,
                     current_snapshot_data=filtered_jobs,
@@ -105,17 +106,24 @@ def run(run_timestamp, companies):
                 )
                 
                 # Sync to Analytics DB
+                diff_data = None
                 try:
                     from src.analytics.daily_sync import sync_job_diff
-                    diff_file = os.path.join(diff_dir, f"jobs_diff_{slug}_{run_timestamp}.json")
-                    if os.path.exists(diff_file):
-                        with open(diff_file, 'r', encoding='utf-8') as f:
+                    if diff_path and os.path.exists(diff_path):
+                        with open(diff_path, 'r', encoding='utf-8') as f:
                             diff_data = json.load(f)
                         sync_job_diff(diff_data, slug, run_timestamp)
                 except ImportError:
                     logger.warning("Analytics module not found, skipping sync.")
                 except Exception as e:
                     logger.error(f"Analytics sync failed for {slug}: {e}")
+
+                # Sync open-now + lifecycles (powers timing + durability analytics)
+                try:
+                    sync_open_now(slug, run_timestamp, len(filtered_jobs))
+                    sync_job_lifecycle(slug, run_timestamp, filtered_jobs, diff_data, window_days=180)
+                except Exception as e:
+                    logger.error(f"Lifespan sync failed for {slug}: {e}")
 
             except Exception as e:
                 logger.error(f"Diff generation failed for {slug}: {e}")

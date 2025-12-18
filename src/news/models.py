@@ -85,6 +85,92 @@ def init_db():
             PRIMARY KEY (company_slug, date)
         )
     ''')
+
+    # Analytics: Open Roles Daily (from filtered snapshots)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS company_open_now_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            run_timestamp TEXT,
+            open_now_count INTEGER,
+            PRIMARY KEY (company_slug, date)
+        )
+    ''')
+
+    # Analytics: Diff Breakdown by Discipline (adds/removes)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS job_diffs_discipline_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            discipline TEXT,
+            added_count INTEGER,
+            removed_count INTEGER,
+            PRIMARY KEY (company_slug, date, discipline)
+        )
+    ''')
+
+    # Analytics: Job Lifecycles (open -> closed) inferred from snapshots
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS job_lifecycle (
+            company_slug TEXT,
+            job_key TEXT,
+            first_seen_date TEXT, -- YYYY-MM-DD
+            last_seen_date TEXT,  -- YYYY-MM-DD (last snapshot containing the job)
+            closed_date TEXT,     -- YYYY-MM-DD (null if still open)
+            title TEXT,
+            url TEXT,
+            discipline TEXT,
+            seniority TEXT,
+            PRIMARY KEY (company_slug, job_key)
+        )
+    ''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_job_lifecycle_company_closed ON job_lifecycle(company_slug, closed_date)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_job_lifecycle_company_first_seen ON job_lifecycle(company_slug, first_seen_date)")
+
+    # Analytics: Lifespan Summary (precomputed for dashboard speed)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS company_lifespan_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            window_days INTEGER,
+            closed_roles_count INTEGER,
+            median_days REAL,
+            p25_days REAL,
+            p75_days REAL,
+            pct_close_within_7d REAL,
+            pct_open_gt_30d REAL,
+            pct_open_gt_60d REAL,
+            age_bucket_0_3 INTEGER,
+            age_bucket_4_7 INTEGER,
+            age_bucket_8_14 INTEGER,
+            age_bucket_15_30 INTEGER,
+            age_bucket_30_plus INTEGER,
+            PRIMARY KEY (company_slug, date, window_days)
+        )
+    ''')
+
+    # Analytics: Momentum & Timing Signals
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS company_signals_daily (
+            company_slug TEXT,
+            date TEXT, -- YYYY-MM-DD
+            lookback_days INTEGER,
+            momentum_state TEXT,        -- Accelerating/Steady/Slowing/Freezing/Volatile/Stable
+            momentum_label TEXT,        -- Booming/Freezing/Volatile/Stable/Quiet
+            momentum_score REAL,
+            is_mover INTEGER,           -- 0/1
+            mover_reason TEXT,
+            timing_hint TEXT,
+            timing_confidence TEXT,     -- high/med/low
+            best_post_weekday INTEGER,  -- 0=Mon ... 6=Sun
+            best_remove_weekday INTEGER,
+            headline_title TEXT,
+            headline_url TEXT,
+            created_at TEXT,
+            PRIMARY KEY (company_slug, date, lookback_days)
+        )
+    ''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_company_signals_date_mover ON company_signals_daily(date, is_mover)")
     
     # User Preferences: Starred Companies
     c.execute('''

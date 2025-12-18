@@ -100,6 +100,29 @@ def get_open_job_count(slug, ats_type=None):
         print(f"Error reading open jobs for {slug}: {e}")
         return 0
 
+
+def _get_latest_date(table_name: str) -> str | None:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        row = cur.execute(f"SELECT MAX(date) FROM {table_name}").fetchone()
+        return row[0] if row and row[0] else None
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
+def _read_sql(query: str, params=None) -> pd.DataFrame:
+    conn = get_connection()
+    try:
+        return pd.read_sql_query(query, conn, params=params or [])
+    except Exception as e:
+        print(f"SQL error: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
 def get_all_companies_rich():
     """
     Returns companies list enriched with:
@@ -110,15 +133,171 @@ def get_all_companies_rich():
     raw = get_companies()
     starred = set(get_starred_companies())
     rich = []
+
+    # Prefer DB open-now when available (much faster than scanning files)
+    latest_open_date = _get_latest_date("company_open_now_daily")
+    open_now_map = {}
+    if latest_open_date:
+        df_open = _read_sql(
+            "SELECT company_slug, open_now_count FROM company_open_now_daily WHERE date=?",
+            params=[latest_open_date],
+        )
+        if not df_open.empty:
+            open_now_map = dict(zip(df_open["company_slug"], df_open["open_now_count"]))
     
     for c in raw:
         slug = c["slug"]
         c["name"] = c.get("name", slug.replace("-", " ").title())
         c["is_starred"] = slug in starred
-        c["open_jobs_count"] = get_open_job_count(slug, c.get("ats"))
+        if slug in open_now_map:
+            c["open_jobs_count"] = int(open_now_map.get(slug, 0))
+        else:
+            c["open_jobs_count"] = get_open_job_count(slug, c.get("ats"))
         rich.append(c)
         
     return rich
+
+
+def get_momentum_board(as_of_date: str | None = None, *, lookback_days: int = 7) -> pd.DataFrame:
+    """
+    Returns one row per company with the latest momentum/timing signal and core weekly metrics.
+    """
+    if as_of_date is None:
+        as_of_date = _get_latest_date("company_signals_daily") or _get_latest_date("job_diffs_daily")
+    if as_of_date is None:
+        return pd.DataFrame()
+
+    companies = pd.DataFrame(get_all_companies_rich())
+    if companies.empty:
+        return pd.DataFrame()
+    if "slug" in companies.columns and "company_slug" not in companies.columns:
+        companies = companies.rename(columns={"slug": "company_slug"})
+
+    signals = _read_sql(
+        """
+        SELECT
+            company_slug,
+            date,
+            lookback_days,
+            momentum_state,
+            momentum_label,
+            momentum_score,
+            is_mover,
+            mover_reason,
+            timing_hint,
+            timing_confidence,
+            best_post_weekday,
+            best_remove_weekday,
+            headline_title,
+            headline_url
+        FROM company_signals_daily
+        WHERE date=? AND lookback_days=?
+        """,
+        params=[as_of_date, int(lookback_days)],
+    )
+    if signals.empty:
+        signals = pd.DataFrame(
+            columns=[
+                "company_slug",
+                "date",
+                "lookback_days",
+                "momentum_state",
+                "momentum_label",
+                "momentum_score",
+                "is_mover",
+                "mover_reason",
+                "timing_hint",
+                "timing_confidence",
+                "best_post_weekday",
+                "best_remove_weekday",
+                "headline_title",
+                "headline_url",
+            ]
+        )
+
+    # Weekly metrics from job_diffs_daily
+    end = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    start = (end - timedelta(days=lookback_days - 1)).strftime("%Y-%m-%d")
+    weekly = _read_sql(
+        """
+        SELECT
+            company_slug,
+            COALESCE(SUM(added_count), 0) AS added_window,
+            COALESCE(SUM(removed_count), 0) AS removed_window,
+            COALESCE(SUM(changed_count), 0) AS changed_window
+        FROM job_diffs_daily
+        WHERE date >= ? AND date <= ?
+        GROUP BY company_slug
+        """,
+        params=[start, as_of_date],
+    )
+    if not weekly.empty:
+        weekly["net_window"] = weekly["added_window"] - weekly["removed_window"]
+    else:
+        weekly = pd.DataFrame(
+            columns=["company_slug", "added_window", "removed_window", "changed_window", "net_window"]
+        )
+
+    # Lifespan summary (latest computed)
+    lifespan = _read_sql(
+        """
+        SELECT company_slug, median_days, p25_days, p75_days, pct_close_within_7d
+        FROM company_lifespan_daily
+        WHERE date=? AND window_days=180
+        """,
+        params=[as_of_date],
+    )
+    if lifespan.empty:
+        lifespan = pd.DataFrame(columns=["company_slug", "median_days", "p25_days", "p75_days", "pct_close_within_7d"])
+
+    df = companies.merge(signals, on="company_slug", how="left").merge(weekly, on="company_slug", how="left").merge(lifespan, on="company_slug", how="left")
+
+    # Fill sane defaults
+    for col in ["added_window", "removed_window", "changed_window", "net_window", "open_jobs_count"]:
+        if col in df.columns:
+            df[col] = df[col].fillna(0).astype(int)
+    if "momentum_score" in df.columns:
+        df["momentum_score"] = df["momentum_score"].fillna(0.0)
+    if "is_mover" in df.columns:
+        df["is_mover"] = df["is_mover"].fillna(0).astype(int)
+
+    df["as_of_date"] = as_of_date
+    df["lookback_days"] = lookback_days
+    return df
+
+
+def get_global_pulse(board_df: pd.DataFrame) -> dict:
+    if board_df is None or board_df.empty:
+        return {
+            "as_of_date": None,
+            "total_open_now": 0,
+            "total_net": 0,
+            "movers": 0,
+            "booming": 0,
+            "freezing": 0,
+            "volatile": 0,
+            "stable": 0,
+        }
+
+    total_open = int(board_df["open_jobs_count"].sum()) if "open_jobs_count" in board_df.columns else 0
+    total_net = int(board_df["net_window"].sum()) if "net_window" in board_df.columns else 0
+
+    movers = board_df[board_df["is_mover"] == 1]
+    def _cnt(lbl: str) -> int:
+        if "momentum_label" not in movers.columns:
+            return 0
+        return int((movers["momentum_label"] == lbl).sum())
+
+    return {
+        "as_of_date": board_df["as_of_date"].iloc[0] if "as_of_date" in board_df.columns else None,
+        "total_open_now": total_open,
+        "total_net": total_net,
+        "movers": int(len(movers)),
+        "booming": _cnt("Booming"),
+        "freezing": _cnt("Freezing"),
+        "volatile": _cnt("Volatile"),
+        "stable": _cnt("Stable"),
+    }
 
 def get_job_diffs_daily(company_slug=None, start_date=None, end_date=None):
     conn = get_connection()
@@ -343,4 +522,134 @@ def get_daily_company_stats(days_back=30):
     finally:
         conn.close()
     return df
+
+
+def get_open_now_daily(company_slug=None, start_date=None, end_date=None):
+    query = "SELECT * FROM company_open_now_daily WHERE 1=1"
+    params = []
+    if company_slug:
+        query += " AND company_slug = ?"
+        params.append(company_slug)
+    if start_date:
+        query += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+    query += " ORDER BY date DESC"
+    return _read_sql(query, params=params)
+
+
+def get_company_signals(company_slug=None, start_date=None, end_date=None, *, lookback_days: int = 7):
+    query = "SELECT * FROM company_signals_daily WHERE lookback_days = ?"
+    params = [int(lookback_days)]
+    if company_slug:
+        query += " AND company_slug = ?"
+        params.append(company_slug)
+    if start_date:
+        query += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+    query += " ORDER BY date DESC"
+    return _read_sql(query, params=params)
+
+
+def get_company_lifespan(company_slug: str, as_of_date: str, *, window_days: int = 180) -> pd.DataFrame:
+    return _read_sql(
+        """
+        SELECT *
+        FROM company_lifespan_daily
+        WHERE company_slug=? AND date=? AND window_days=?
+        """,
+        params=[company_slug, as_of_date, int(window_days)],
+    )
+
+
+def get_company_lifespan_by_discipline(company_slug: str, as_of_date: str, *, window_days: int = 180) -> pd.DataFrame:
+    """
+    Returns per-discipline lifespan stats inferred from job_lifecycle.
+    """
+    end = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    start = (end - timedelta(days=window_days - 1)).strftime("%Y-%m-%d")
+    df = _read_sql(
+        """
+        SELECT discipline, first_seen_date, closed_date
+        FROM job_lifecycle
+        WHERE company_slug=?
+          AND closed_date IS NOT NULL
+          AND closed_date >= ? AND closed_date <= ?
+        """,
+        params=[company_slug, start, as_of_date],
+    )
+    if df.empty:
+        return df
+
+    def _dur(row):
+        try:
+            fs = datetime.strptime(row["first_seen_date"], "%Y-%m-%d").date()
+            cd = datetime.strptime(row["closed_date"], "%Y-%m-%d").date()
+            return (cd - fs).days + 1
+        except Exception:
+            return None
+
+    df["days_open"] = df.apply(_dur, axis=1)
+    df = df.dropna(subset=["days_open"])
+    if df.empty:
+        return df
+
+    agg = df.groupby("discipline")["days_open"].agg(["count", "median"]).reset_index()
+    agg = agg.sort_values(["median", "count"], ascending=[True, False])
+    return agg
+
+
+def get_company_lifespan_by_seniority(company_slug: str, as_of_date: str, *, window_days: int = 180) -> pd.DataFrame:
+    end = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    start = (end - timedelta(days=window_days - 1)).strftime("%Y-%m-%d")
+    df = _read_sql(
+        """
+        SELECT seniority, first_seen_date, closed_date
+        FROM job_lifecycle
+        WHERE company_slug=?
+          AND closed_date IS NOT NULL
+          AND closed_date >= ? AND closed_date <= ?
+        """,
+        params=[company_slug, start, as_of_date],
+    )
+    if df.empty:
+        return df
+
+    def _dur(row):
+        try:
+            fs = datetime.strptime(row["first_seen_date"], "%Y-%m-%d").date()
+            cd = datetime.strptime(row["closed_date"], "%Y-%m-%d").date()
+            return (cd - fs).days + 1
+        except Exception:
+            return None
+
+    df["days_open"] = df.apply(_dur, axis=1)
+    df = df.dropna(subset=["days_open"])
+    if df.empty:
+        return df
+
+    agg = df.groupby("seniority")["days_open"].agg(["count", "median"]).reset_index()
+    agg = agg.sort_values(["median", "count"], ascending=[True, False])
+    return agg
+
+
+def get_discipline_diffs_daily(company_slug=None, start_date=None, end_date=None) -> pd.DataFrame:
+    query = "SELECT * FROM job_diffs_discipline_daily WHERE 1=1"
+    params = []
+    if company_slug:
+        query += " AND company_slug = ?"
+        params.append(company_slug)
+    if start_date:
+        query += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+    query += " ORDER BY date DESC"
+    return _read_sql(query, params=params)
 

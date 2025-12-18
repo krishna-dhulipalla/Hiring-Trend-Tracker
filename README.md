@@ -50,6 +50,29 @@ On top of snapshots, it computes **diffs over time** (Added / Removed / Changed 
 
 ---
 
+## Dashboard: Momentum Board
+
+The Streamlit dashboard is designed to answer, immediately:
+
+- Which companies have meaningful momentum this week (booming/freezing/volatile/stable) and why
+- What that implies for timing (apply-window vs networking trigger)
+- How long roles typically last per company (lifespan / durability)
+- The global market pulse (open roles, net change, mix shifts, concentration)
+
+Run it:
+
+```powershell
+.\.venv\Scripts\python -m streamlit run dashboard\Overview.py
+```
+
+If you have historical snapshots but no signals yet, you can backfill:
+
+```powershell
+.\.venv\Scripts\python scripts\backfill_analytics.py
+```
+
+---
+
 ## Architecture & Data Flow
 
 At a high level, the tracker is a batch pipeline:

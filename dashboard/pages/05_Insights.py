@@ -1,185 +1,188 @@
 import streamlit as st
 import altair as alt
 import pandas as pd
-import sys
-import os
 from datetime import datetime, timedelta
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import data_access as da
 import components as ui
-from scoring import classify_company_momentum
 
-st.set_page_config(page_title="Visual Insights", page_icon="💡", layout="wide")
+st.set_page_config(page_title="Global Pulse", page_icon="🌐", layout="wide")
 ui.apply_custom_css()
 
-st.title("Market Insights 💡")
-st.markdown("Visualizing hiring trends, momentum, and opportunities.")
+st.title("Global Pulse")
+st.caption("Actionable market + domain signals (no chart clutter).")
 
-# --- Sidebar Controls ---
 with st.sidebar:
-    st.header("Analysis Settings")
-    days_back = st.slider("Lookback Window", 7, 90, 30)
-    
-    # Global Filter: Starred Only
-    filter_starred = st.checkbox("Starred Companies Only", value=False)
+    st.header("Scope")
+    days_back = st.slider("Lookback window (days)", 14, 120, 45)
+    signal_lookback = st.selectbox("Signal lookback (days)", [7, 14], index=0)
 
-# --- Data Loading ---
-# 1. Daily Granular Data (Trends, Heatmap)
-df_daily = da.get_daily_company_stats(days_back=days_back)
+end_date = datetime.now().date()
+start_date = (end_date - timedelta(days=int(days_back) - 1)).strftime("%Y-%m-%d")
+end_date_str = end_date.strftime("%Y-%m-%d")
 
-# 2. Company Rich Data (Open Now, Names)
-rich_companies = da.get_all_companies_rich()
-df_rich = pd.DataFrame(rich_companies)
+# ------------------------------------------------------------
+# Panel 1: Open roles + net change trend
+# ------------------------------------------------------------
+st.subheader("1) Market pulse: Open roles + net change")
 
-if df_daily.empty:
-    st.info("No data available for the selected window. Try generating more data or increasing the lookback.")
-    st.stop()
+df_open = da.get_open_now_daily(start_date=start_date, end_date=end_date_str)
+df_diffs = da.get_job_diffs_daily(start_date=start_date, end_date=end_date_str)
 
-# Merge Name/Stars into Daily
-df_daily = df_daily.merge(df_rich[["slug", "name", "is_starred", "open_jobs_count"]], left_on="company_slug", right_on="slug", how="left")
+open_trend = pd.DataFrame()
+if not df_open.empty:
+    df_open = df_open.copy()
+    df_open["date"] = pd.to_datetime(df_open["date"])
+    open_trend = df_open.groupby("date")["open_now_count"].sum().reset_index().sort_values("date")
 
-# --- Filtering ---
-if filter_starred:
-    df_daily = df_daily[df_daily["is_starred"] == True]
-    df_rich = df_rich[df_rich["is_starred"] == True]
+net_trend = pd.DataFrame()
+if not df_diffs.empty:
+    df_diffs = df_diffs.copy()
+    df_diffs["date"] = pd.to_datetime(df_diffs["date"])
+    df_diffs["net"] = df_diffs["added_count"] - df_diffs["removed_count"]
+    net_trend = df_diffs.groupby("date")[["added_count", "removed_count", "net"]].sum().reset_index().sort_values("date")
 
-if df_daily.empty:
-    st.warning("No data matches current filters.")
-    st.stop()
+if open_trend.empty and net_trend.empty:
+    st.info("Not enough data yet. Run the scraper for a few days (or backfill).")
+else:
+    layers = []
+    if not open_trend.empty:
+        layers.append(
+            alt.Chart(open_trend).mark_line(color="#94a3b8", strokeWidth=2).encode(
+                x=alt.X("date:T", axis=alt.Axis(title=None, format="%b %d")),
+                y=alt.Y("open_now_count:Q", title="Total open roles"),
+                tooltip=[alt.Tooltip("date:T", title="Date"), alt.Tooltip("open_now_count:Q", title="Open roles")],
+            )
+        )
+    if not net_trend.empty:
+        layers.append(
+            alt.Chart(net_trend).mark_bar(color="#10b981", opacity=0.35).encode(
+                x="date:T",
+                y=alt.Y("net:Q", title="Net change (daily)"),
+                tooltip=[alt.Tooltip("date:T", title="Date"), alt.Tooltip("net:Q", title="Net")],
+            )
+        )
+    st.altair_chart(alt.layer(*layers).resolve_scale(y="independent").properties(height=320).interactive(), width="stretch")
 
-# --- Chart 1: Market Trend Timeline ---
-st.subheader("1. Market Trend Timeline")
-# Aggregate daily
-market_trend = df_daily.groupby("date")[["added_count", "removed_count", "net_change"]].sum().reset_index()
+# Summary metrics (as-of latest available)
+col1, col2, col3 = st.columns(3)
+col1.metric("Open roles now", int(open_trend["open_now_count"].iloc[-1]) if not open_trend.empty else 0)
+col2.metric("Net (today)", int(net_trend["net"].iloc[-1]) if not net_trend.empty else 0)
+col3.metric("Total added (window)", int(net_trend["added_count"].sum()) if not net_trend.empty else 0)
 
-base = alt.Chart(market_trend).encode(x="date:T")
-line_added = base.mark_line(color="#10b981").encode(y="added_count", tooltip=["date", "added_count"])
-line_removed = base.mark_line(color="#ef4444").encode(y="removed_count", tooltip=["date", "removed_count"])
-
-chart_trend = (line_added + line_removed).properties(height=300, title="Daily Added (Green) vs Removed (Red)")
-st.altair_chart(chart_trend, use_container_width=True)
-
-# --- Chart 2: Opportunity Map ---
-st.subheader("2. Opportunity Map")
-c1, c2 = st.columns([3, 1])
-
-with c1:
-    # Aggregate stats per company for the window
-    company_aggs = df_daily.groupby("slug").agg({
-        "added_count": "sum",
-        "net_change": "sum",
-        "name": "first",
-        "open_jobs_count": "first" # Matches current snapshot, effectively
-    }).reset_index()
-    
-    # Compute Momentum Label for Color
-    def get_mom(row):
-        return classify_company_momentum({"added_total": row["added_count"], "net_change": row["net_change"]}, row["open_jobs_count"])
-        
-    company_aggs["momentum"] = company_aggs.apply(get_mom, axis=1)
-    
-    # Scatter Plot
-    # X=Open Now, Y=Net Change, Size=Added
-    scatter = alt.Chart(company_aggs).mark_circle().encode(
-        x=alt.X("open_jobs_count", title="Open Jobs Now"),
-        y=alt.Y("net_change", title="Net Change (Window)"),
-        size=alt.Size("added_count", title="Total Added", scale=alt.Scale(range=[50, 500])),
-        color=alt.Color("momentum", title="Momentum", scale=alt.Scale(domain=["🔥 Hot", "🙂 Warming", "😐 Flat", "🧊 Cooling"], range=["#ef4444", "#f97316", "#64748b", "#3b82f6"])),
-        tooltip=["name", "open_jobs_count", "net_change", "added_count", "momentum"]
-    ).properties(height=400).interactive()
-    
-    # Interaction Selection
-    # Using Altair selection is tricky for simple Streamlit interactivity.
-    # We'll use a simple dropdown for "Drill Down" below or rely on the user finding the company.
-    st.altair_chart(scatter, use_container_width=True)
-
-with c2:
-    st.markdown("##### Drill Down")
-    # sorted by open jobs
-    opts = company_aggs.sort_values("open_jobs_count", ascending=False)["slug"].tolist()
-    
-    # Helper to map slug to name
-    name_map = dict(zip(company_aggs["slug"], company_aggs["name"]))
-    
-    selected = st.selectbox("Select Company to Analyze", opts, format_func=lambda x: name_map.get(x, x))
-    
-    if selected:
-        st.session_state["selected_company"] = selected
-        st.markdown(f"**{name_map[selected]}**")
-        st.caption(f"{company_aggs[company_aggs['slug']==selected]['momentum'].iloc[0]}")
-        
-        if st.button("Go to Detail"):
-            st.switch_page("pages/02_Company_Detail.py")
-        if st.button("Go to Diff Viewer"):
-             st.session_state["diff_viewer_slug"] = selected
-             st.switch_page("pages/03_Diff_Viewer.py")
-
+# ------------------------------------------------------------
+# Panel 2: Movers distribution trend
+# ------------------------------------------------------------
 st.divider()
+st.subheader("2) Booming vs freezing companies")
 
-# --- Chart 3: Hiring Heatmap ---
-st.subheader("3. Hiring Heatmap (Last 30 Days)")
-# Filter to top N active companies to avoid overcrowding
-top_N_slugs = company_aggs.sort_values("added_count", ascending=False).head(20)["slug"]
-heatmap_df = df_daily[df_daily["slug"].isin(top_N_slugs)].copy()
+df_sig = da.get_company_signals(start_date=start_date, end_date=end_date_str, lookback_days=int(signal_lookback))
+if df_sig.empty:
+    st.caption("No signals computed yet (run scraper; signals are computed after a run).")
+else:
+    df_sig = df_sig.copy()
+    df_sig["date"] = pd.to_datetime(df_sig["date"])
+    movers_only = df_sig[df_sig["is_mover"] == 1]
+    dist = movers_only.groupby(["date", "momentum_label"]).size().reset_index(name="count")
+    chart = alt.Chart(dist).mark_line(point=True).encode(
+        x=alt.X("date:T", axis=alt.Axis(title=None, format="%b %d")),
+        y=alt.Y("count:Q", title="Mover count"),
+        color=alt.Color("momentum_label:N", title="Label"),
+        tooltip=["date:T", "momentum_label:N", "count:Q"],
+    ).properties(height=260)
+    st.altair_chart(chart.interactive(), width="stretch")
 
-heatmap = alt.Chart(heatmap_df).mark_rect().encode(
-    x=alt.X("date:T", title=None, axis=alt.Axis(format="%d")),
-    y=alt.Y("name:O", title=None),
-    color=alt.Color("net_change", scale=alt.Scale(scheme="redyellowgreen"), title="Net Change"),
-    tooltip=["name", "date", "added_count", "removed_count", "net_change"]
-).properties(height=max(300, len(top_N_slugs)*20))
+# ------------------------------------------------------------
+# Panel 3: Weekday effect heatmap
+# ------------------------------------------------------------
+st.divider()
+st.subheader("3) Weekday effect (adds / removes / net)")
 
-st.altair_chart(heatmap, use_container_width=True)
+if df_diffs.empty:
+    st.caption("No job diffs found for this window.")
+else:
+    w = df_diffs.copy()
+    w["date"] = pd.to_datetime(w["date"])
+    w["weekday"] = w["date"].dt.day_name().str[:3]
+    w["net"] = w["added_count"] - w["removed_count"]
+    wk = w.groupby("weekday")[["added_count", "removed_count", "net"]].sum().reset_index()
+    order = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    wk["weekday"] = pd.Categorical(wk["weekday"], categories=order, ordered=True)
+    wk = wk.sort_values("weekday")
 
-# --- Chart 4: Mix Charts ---
-st.subheader("4. Hiring Mix (Global Window)")
+    melt = wk.melt(id_vars=["weekday"], value_vars=["added_count", "removed_count", "net"], var_name="metric", value_name="value")
+    heat = alt.Chart(melt).mark_rect().encode(
+        x=alt.X("weekday:N", title=None),
+        y=alt.Y("metric:N", title=None),
+        color=alt.Color("value:Q", scale=alt.Scale(scheme="redyellowgreen"), title="Sum"),
+        tooltip=["weekday:N", "metric:N", "value:Q"],
+    ).properties(height=160)
+    st.altair_chart(heat, width="stretch")
 
-mix_cols = st.columns(2)
-# Seniority Mix
-total_added = df_daily["added_count"].sum()
-senior_added = df_daily["senior_plus_added_count"].sum()
-mid_added = max(0, total_added - senior_added)
+# ------------------------------------------------------------
+# Panel 4: Domain mix shift (discipline)
+# ------------------------------------------------------------
+st.divider()
+st.subheader("4) Domain mix shift (discipline)")
 
-mix_df = pd.DataFrame([
-    {"type": "Mid/Junior", "count": mid_added},
-    {"type": "Senior+", "count": senior_added}
-])
+disc = da.get_discipline_diffs_daily(start_date=start_date, end_date=end_date_str)
+if disc.empty:
+    st.caption("No discipline breakdown found yet (will populate on new runs, or via backfill).")
+else:
+    disc = disc.copy()
+    disc["date"] = pd.to_datetime(disc["date"])
+    latest = disc["date"].max().date()
+    last7_start = latest - timedelta(days=6)
+    prev7_start = latest - timedelta(days=13)
+    prev7_end = latest - timedelta(days=7)
 
-with mix_cols[0]:
-    st.markdown("**Seniority**")
-    base_pie = alt.Chart(mix_df).encode(theta=alt.Theta("count", stack=True))
-    pie = base_pie.mark_arc(outerRadius=120).encode(
-        color=alt.Color("type"),
-        tooltip=["type", "count"]
-    )
-    text = base_pie.mark_text(radius=140).encode(
-        text=alt.Text("count"),
-        order=alt.Order("type"),
-        color=alt.value("white")  
-    )
-    st.altair_chart(pie + text, use_container_width=True)
+    last7 = disc[(disc["date"].dt.date >= last7_start) & (disc["date"].dt.date <= latest)].groupby("discipline")["added_count"].sum()
+    prev7 = disc[(disc["date"].dt.date >= prev7_start) & (disc["date"].dt.date <= prev7_end)].groupby("discipline")["added_count"].sum()
 
-# Remote Mix
-remote_added = df_daily["us_remote_added_count"].sum()
-onsite_added = max(0, total_added - remote_added) # Approximation (Total - Remote)
+    df_mix = pd.DataFrame({"last7_added": last7, "prev7_added": prev7}).fillna(0).reset_index()
+    tot_last = df_mix["last7_added"].sum()
+    tot_prev = df_mix["prev7_added"].sum()
+    if tot_last == 0 or tot_prev == 0:
+        st.caption("Not enough recent additions to compute mix shift.")
+    else:
+        df_mix["last7_share"] = df_mix["last7_added"] / tot_last
+        df_mix["prev7_share"] = df_mix["prev7_added"] / tot_prev
+        df_mix["delta_share"] = df_mix["last7_share"] - df_mix["prev7_share"]
+        df_mix = df_mix.sort_values("delta_share", ascending=False)
 
-mix_remote_df = pd.DataFrame([
-    {"type": "Remote/Hybrid", "count": remote_added},
-    {"type": "Onsite/Other", "count": onsite_added}
-])
+        bar = alt.Chart(df_mix).mark_bar().encode(
+            x=alt.X("delta_share:Q", title="Share change (last 7d vs prior 7d)", axis=alt.Axis(format="%")),
+            y=alt.Y("discipline:N", title=None, sort="-x"),
+            color=alt.Color("delta_share:Q", scale=alt.Scale(scheme="redyellowgreen")),
+            tooltip=["discipline:N", alt.Tooltip("last7_added:Q", title="Last7 added"), alt.Tooltip("prev7_added:Q", title="Prev7 added"), alt.Tooltip("delta_share:Q", title="Δ share", format=".1%")],
+        ).properties(height=220)
+        st.altair_chart(bar, width="stretch")
 
-with mix_cols[1]:
-    st.markdown("**Remote vs Onsite**")
-    base_pie_r = alt.Chart(mix_remote_df).encode(theta=alt.Theta("count", stack=True))
-    pie_r = base_pie_r.mark_arc(outerRadius=120).encode(
-        color=alt.Color("type", scale=alt.Scale(domain=["Remote/Hybrid", "Onsite/Other"], range=["#a855f7", "#cbd5e1"])),
-        tooltip=["type", "count"]
-    )
-    text_r = base_pie_r.mark_text(radius=140).encode(
-        text=alt.Text("count"),
-        order=alt.Order("type"),
-        color=alt.value("white")
-    )
-    st.altair_chart(pie_r + text_r, use_container_width=True)
+# ------------------------------------------------------------
+# Panel 5: Concentration (avoid false optimism)
+# ------------------------------------------------------------
+st.divider()
+st.subheader("5) Concentration: top companies drive the adds")
+
+if df_diffs.empty:
+    st.caption("No diffs for this window.")
+else:
+    latest_date = df_diffs["date"].max()
+    if isinstance(latest_date, pd.Timestamp):
+        latest_dt = latest_date.date()
+    else:
+        latest_dt = datetime.strptime(str(latest_date), "%Y-%m-%d").date()
+    lb_start = latest_dt - timedelta(days=int(signal_lookback) - 1)
+
+    recent = df_diffs.copy()
+    recent["date"] = pd.to_datetime(recent["date"])
+    recent = recent[(recent["date"].dt.date >= lb_start) & (recent["date"].dt.date <= latest_dt)]
+    adds = recent.groupby("company_slug")["added_count"].sum().sort_values(ascending=False)
+    total_adds = float(adds.sum())
+    if total_adds <= 0:
+        st.caption("No additions in this window.")
+    else:
+        top5 = adds.head(5)
+        share = float(top5.sum()) / total_adds
+        st.metric("Top 5 share of new roles", f"{share*100:.0f}%")
+        st.dataframe(top5.reset_index().rename(columns={"company_slug": "Company", "added_count": "Added"}), width="stretch", hide_index=True)

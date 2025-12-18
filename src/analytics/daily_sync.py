@@ -4,14 +4,19 @@ import logging
 from datetime import datetime
 from src.news.models import get_connection
 
+
+def _run_date(run_timestamp: str) -> str:
+    ts_obj = datetime.strptime(run_timestamp, "%Y-%m-%dT%H-%M-%SZ")
+    return ts_obj.strftime("%Y-%m-%d")
+
+
 def sync_job_diff(diff_data, company_slug, run_timestamp):
     """
     Syncs a job diff record into the job_diffs_daily table.
     """
     try:
         # Parse timestamp to date
-        ts_obj = datetime.strptime(run_timestamp, "%Y-%m-%dT%H-%M-%SZ")
-        date_str = ts_obj.strftime("%Y-%m-%d") # UTC date
+        date_str = _run_date(run_timestamp)  # UTC date
 
         added_count = diff_data.get("summary", {}).get("added", 0)
         removed_count = diff_data.get("summary", {}).get("removed", 0)
@@ -24,6 +29,10 @@ def sync_job_diff(diff_data, company_slug, run_timestamp):
         added_jobs = diff_data.get("added", [])
         if not added_jobs:
             added_jobs = diff_data.get("details", {}).get("added", [])
+
+        removed_jobs = diff_data.get("removed", [])
+        if not removed_jobs:
+            removed_jobs = diff_data.get("details", {}).get("removed", [])
             
         keywords = ["senior", "staff", "principal", "lead", "director", "head", "vp", "architect"]
         senior_plus_added_count = 0
@@ -40,6 +49,27 @@ def sync_job_diff(diff_data, company_slug, run_timestamp):
             (company_slug, date, run_timestamp, added_count, removed_count, changed_count, us_added_count, us_remote_added_count, senior_plus_added_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (company_slug, date_str, run_timestamp, added_count, removed_count, changed_count, us_added_count, us_remote_added_count, senior_plus_added_count))
+
+        # Discipline breakdown for mix-shift + domain pulse
+        disc_added = {}
+        disc_removed = {}
+        for job in added_jobs:
+            disc = job.get("discipline") or "Other"
+            disc_added[disc] = disc_added.get(disc, 0) + 1
+        for job in removed_jobs:
+            disc = job.get("discipline") or "Other"
+            disc_removed[disc] = disc_removed.get(disc, 0) + 1
+
+        disciplines = set(disc_added.keys()) | set(disc_removed.keys())
+        for disc in disciplines:
+            c.execute(
+                """
+                INSERT OR REPLACE INTO job_diffs_discipline_daily
+                    (company_slug, date, discipline, added_count, removed_count)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (company_slug, date_str, disc, int(disc_added.get(disc, 0)), int(disc_removed.get(disc, 0))),
+            )
         
         conn.commit()
         conn.close()
