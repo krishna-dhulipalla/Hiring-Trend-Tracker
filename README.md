@@ -8,12 +8,12 @@ It scrapes jobs across many companies, keeps daily history (snapshots + diffs), 
 
 **Momentum Board**
 
-![Momentum Board](images/overview.png)
+![Momentum Board](images/company_2.png)
 
 **Company Intelligence**
 
 ![Company Detail 1](images/company_1.png)
-![Company Detail 2](images/company_2.png)
+![Company Detail 2](images/overview.png)
 ![Company Detail 3](images/company_3.png)
 
 ## What It Answers (Immediately)
