@@ -1,294 +1,113 @@
-# Reverse-Engineered ATS Job Tracker
+# Hiring Trend Tracker (Momentum Board)
 
-> **Status:** Work in progress — actively adding better filtering, scoring, and dashboards.
+This project is designed for **my personal job-search workflow**, but it’s usable by any job seeker who wants a **weekly signal dashboard** instead of another job board.
 
-This project is a **Reverse-Engineered ATS Job Tracker**.
+It scrapes jobs across many companies, keeps daily history (snapshots + diffs), computes **momentum + timing signals**, and presents everything in a **Streamlit dashboard**.
 
-It continuously pulls job postings from multiple ATS providers  
-(e.g. **Workday, Greenhouse, Lever, Ashby, SmartRecruiters**), normalizes them into a unified schema,  
-filters to **US / US-remote ML/AI/Data/Backend/Infra roles**, and stores **daily snapshots per company**.
+## Screenshots
 
-On top of snapshots, it computes **diffs over time** (Added / Removed / Changed jobs) to enable hiring trend analytics.
+**Momentum Board**
 
-![Overview](images/overview.png)
+![Momentum Board](images/overview.png)
 
----
+**Company Intelligence**
 
-## High-level goals
+![Company Detail 1](images/company_1.png)
+![Company Detail 2](images/company_2.png)
+![Company Detail 3](images/company_3.png)
 
-- Track how individual companies hire over time, not just point-in-time openings.
-- Provide a single unified representation from different ATS backends.
-- Maintain daily history supporting:
-  - US hiring velocity.
-  - Role mix trends (AI / ML / Data / Backend / Infra).
-  - Seniority momentum (how much of the funnel is junior/mid/senior).
-  - Time-to-close estimation from first_seen / last_seen.
+## What It Answers (Immediately)
 
----
+- **Which companies have meaningful momentum this week?** (Booming / Freezing / Volatile / Stable + why)
+- **What does that imply for timing?** (apply-window vs networking trigger)
+- **How long do roles last at this company?** (median lifespan + fast-close % + age buckets)
+- **What’s the global market pulse in my domain?** (open roles trend, net change, weekday effects, mix shift, concentration)
 
-## Current capabilities
+## Key Features
 
-1. **Multi‑ATS ingestion**
-   - Fetch raw jobs from ATS APIs / endpoints:
-     - Workday, Greenhouse, Lever, Ashby, SmartRecruiters.
-2. **Normalization into one schema**
-   - Map provider‑specific fields into a common job record:
-     - `company_slug`, `title`, `team`, `location`, `remote_flag`, `seniority`, `job_id`, `url`, timestamps, etc.
-3. **Filtering to “my” target set**
-   - US‑eligible / US‑remote roles only.
-   - ML / AI / Data / Backend / Infra‑type titles using keyword + rules around seniority and noise words.
-4. **Snapshotting per company per run**
-   - Store **raw**, **filtered**, and **diff** snapshots for each company in each run.
-5. **Diffs over time**
-   - Compute **Added / Removed / Changed** jobs vs. the last snapshot for that company.
-   - Maintain `first_seen` / `last_seen` to support time‑to‑close analysis.
-6. **Exactly one file per type per run**
-   - For each company and run:
-     - one raw file,
-     - one filtered file,
-     - one diff file.
+- **Momentum Board (dashboard home)**: Movers expanded by default; everyone else stays available but collapsed.
+- **Signal engine**: gates “Movers” to avoid noise and emits a “why it triggered” string.
+- **Timing intelligence**: best posting/removal weekday + apply window hint (fast-close vs evergreen).
+- **Role durability analytics**: role lifespan inferred from daily snapshots (no extra UX for role tracking).
+- **News reframed as signals**: headlines appear only when they explain a hiring change (spike/freeze/mix shift).
 
----
+## Data Model (Simple)
 
-## Dashboard: Momentum Board
+- `data/raw/…` / `data/filtered/…`: daily snapshots per company
+- `data/diffs/…`: Added / Removed / Changed compared to prior snapshot
+- `news.db`: SQLite database for analytics tables (signals, lifespan summaries, news aggregates)
 
-The Streamlit dashboard is designed to answer, immediately:
+## Quick Start (Windows)
 
-- Which companies have meaningful momentum this week (booming/freezing/volatile/stable) and why
-- What that implies for timing (apply-window vs networking trigger)
-- How long roles typically last per company (lifespan / durability)
-- The global market pulse (open roles, net change, mix shifts, concentration)
+### 1) Install
 
-Run it:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+```
+
+### 2) Configure (optional but recommended)
+
+Create a `.env` in repo root:
+
+```text
+GNEWS_API_KEY=...
+FINNHUB_API_KEY=...
+```
+
+If you don’t set keys, the dashboard still works from job data; news features will be limited.
+
+### 3) Run a scrape (jobs + news)
+
+```powershell
+.\.venv\Scripts\python -m src.main --all --days 7
+```
+
+### 4) Start the dashboard
 
 ```powershell
 .\.venv\Scripts\python -m streamlit run dashboard\Overview.py
 ```
 
-If you have historical snapshots but no signals yet, you can backfill:
+## Daily Automation (Task Scheduler)
+
+- Daily scrape + logs: `scripts/run_daily_scrape.bat`
+  - Logs: `logs/scheduler/scrape_<timestamp>.log`
+- Start dashboard on login: `scripts/start_dashboard.bat`
+  - Relaunches hidden so it doesn’t leave a visible console window.
+
+Suggested schedules:
+- **Scrape**: daily at a consistent time (e.g., 6:30 AM local)
+- **Dashboard**: at logon (so it’s always available on `http://localhost:8501`)
+
+## Using This for Your Personal Use Case
+
+1) **Pick your company list**
+- Edit `src/config/companies.json` (add/remove companies, set `ats`, optional `ticker`).
+
+2) **Customize your role preferences**
+- Edit `dashboard/scoring.py`:
+  - `USER_PROFILE["target_keywords"]`
+  - `USER_PROFILE["avoid_keywords"]`
+  - seniority/location preferences
+
+3) **Customize filtering rules (role families / geo)**
+- Edit `src/config.py` and/or `src/utils.py` (US eligibility + title filtering logic).
+
+4) **Scrape + view**
+- Run: `.\.venv\Scripts\python -m src.main --all`
+- Start dashboard: `.\.venv\Scripts\python -m streamlit run dashboard\Overview.py`
+
+## Backfilling (If You Already Have Snapshot History)
+
+If you already have `data/filtered/...` history and want lifespan + open-now history computed immediately:
 
 ```powershell
 .\.venv\Scripts\python scripts\backfill_analytics.py
 ```
 
----
+## Notes
 
-## Architecture & Data Flow
+- This is intentionally optimized for **trend + timing** (not a traditional job board UX).
+- External APIs have quotas (especially news). If you see `429` errors, reduce request rates or rotate keys.
 
-At a high level, the tracker is a batch pipeline:
-
-1. **Company & ATS config**
-   - Static configuration for each company: ATS type, base endpoint, filters, slugs.
-2. **Fetch jobs (per company)**
-   - Call the underlying ATS API with pagination and basic parameters (e.g., limit/offset for Workday).
-   - Collect all open jobs into a raw list.
-3. **Normalize & annotate**
-   - Convert raw objects into a unified schema.
-   - Derive fields like `seniority_level`, `is_remote`, `us_eligible` using rule‑based classification.
-4. **Filter to target roles**
-   - Keep only jobs in the target geography (US / US‑remote) and target role families (ML/AI/Data/Backend/Infra).
-5. **Snapshot writer**
-   - Write **raw** and **filtered** snapshots for each company.
-   - Use consistent file naming including date/time and `company_slug` so runs are easy to diff and backfill.
-6. **Diff engine**
-   - For each company, compare the latest filtered snapshot to the previous one:
-     - new jobs (`Added`),
-     - closed/removed jobs (`Removed`),
-     - changed jobs (`Changed` — e.g., title/location/seniority changes).
-7. **Analytics hooks**
-   - Downstream consumers can read snapshots and diffs to compute hiring velocity, role mix, and time‑to‑close.
-
-A simplified text view:
-
-```text
-Config (companies + ATS type)
-        ↓
-Ingestion (per ATS client)
-        ↓
-Normalization & annotation
-        ↓
-Filtering (US + role family)
-        ↓
-Snapshots (raw + filtered)
-        ↓
-Diff engine (Added / Removed / Changed)
-        ↓
-Analytics / dashboards (work in progress)
-```
-
----
-
-## Data model & files
-
-Key concepts:
-
-- **Raw snapshot**
-  - All normalized jobs for a company for a given run.
-  - Preserves as much provider context as possible.
-- **Filtered snapshot**
-  - Subset of jobs that pass **US‑eligibility** and **role family** filters.
-  - Used by downstream analytics and diffing.
-- **Diff**
-  - Comparison between consecutive filtered snapshots for a given company.
-  - Contains lists of `added`, `removed`, and `changed` job IDs and their metadata.
-- **US‑eligible**
-  - Explicit US markers (`United States`, `US`, state abbreviations).
-  - Remote roles that do **not** contain region hints that clearly exclude the US (e.g., “Europe only”, “APAC only”).
-- **First seen / last seen**
-  - `first_seen`: when a job first appears in filtered snapshots.
-  - `last_seen`: last run where the job was still present.
-  - Together they approximate **time‑to‑close**.
-
-File layout is designed so each run is deterministic and easy to inspect. A typical structure looks like:
-
-```text
-data/
-  raw/
-    2025-01-10/
-      company_a_raw.jsonl
-      company_b_raw.jsonl
-  filtered/
-    2025-01-10/
-      company_a_filtered.jsonl
-      company_b_filtered.jsonl
-  diffs/
-    2025-01-10/
-      company_a_diff.jsonl
-      company_b_diff.jsonl
-```
-
-*(Exact paths and filenames may differ slightly from this example, but the one‑raw / one‑filtered / one‑diff per company per run contract is enforced.)*
-
----
-
-## Performance, Latency & Metrics
-
-This is a **batch** job rather than an online API, so “latency” refers to **per‑run** and **per‑company** times rather than single user requests.
-
-### Runtime and scale
-
-Main contributors:
-
-- **Network latency** to each ATS API (especially for paginated providers like Workday).
-- **JSON processing**: parsing large responses and normalizing them.
-- **I/O**: writing snapshots and diffs to disk.
-
-As the number of tracked companies increases, total runtime scales roughly linearly with:
-
-- number of companies ×
-- pages per company ×
-- jobs per page.
-
-For observability, the tracker is organized so you can easily log and track:
-
-- time per **company fetch** (ingestion),
-- time per **normalization + filtering** pass,
-- time per **diff computation**.
-
-### Cost and quotas
-
-There is no LLM in the core tracker, so “cost per run” is mainly about:
-
-- ATS rate limits and quotas,
-- total number of HTTP calls,
-- storage used by snapshots and diffs.
-
-Tracking per‑company counts (jobs fetched, jobs kept, jobs added/removed) and per‑run HTTP error rates gives a good picture of both **coverage** and **stability**.
-
-### Evaluation & quality metrics
-
-Useful metrics and checks:
-
-- **Coverage per company**:
-  - total jobs fetched vs. jobs visible on the public careers site.
-- **Filter quality**:
-  - percentage of fetched jobs that pass the US + role family filters.
-  - spot‑check false positives / false negatives by company.
-- **Diff sanity**:
-  - number of added/removed jobs per run (extreme spikes or zeros can indicate ingestion issues).
-- **Time‑to‑close estimates**:
-  - distribution of `(last_seen - first_seen)` durations for jobs by company and role family.
-
-These can be computed from snapshots and diffs without any extra tooling.
-
----
-
-## Infrastructure & Ops Notes
-
-The tracker is intentionally light on infrastructure requirements:
-
-- **Execution model**
-  - Can be run as a local Python script, a scheduled container, or a cron job on a VM.
-- **Configuration**
-  - Company list, ATS types, and filters are driven by config and environment variables.
-- **Storage**
-  - Snapshots and diffs are plain files on disk, which can be:
-    - kept locally, or
-    - synced to object storage (e.g., S3/GCS) for backups and dashboards.
-- **Logging**
-  - Each run can log:
-    - start/end timestamps,
-    - per‑company job counts,
-    - per‑company runtime,
-    - HTTP errors or parsing failures.
-
-These patterns are enough to support monitoring and debugging while the project continues to evolve.
-
----
-
-## Key concepts (summary)
-
-- **Raw snapshot**: all normalized jobs.
-- **Filtered snapshot**: US / US‑remote, relevant technical roles.
-- **Diff**: comparison between consecutive snapshots.
-- **US‑eligible**: explicit US evidence or remote without non‑US region markers.
-- **First seen / last seen**: used for time‑to‑close.
-
----
-
-## Example Postmortem: Non‑US Roles Leaking into “US‑Only” Filter
-
-**Symptom**  
-Some clearly non‑US roles (e.g., “Software Engineer – Berlin” or “Data Scientist – London”) appeared in the filtered US / US‑remote set.
-
-**Investigation**
-
-- Sampled filtered snapshots where `location` contained obvious non‑US cities.
-- Noticed several job titles with mixed markers (e.g., “Remote – EMEA / US” and “Remote, Europe or US”) being treated as US‑eligible.
-- Found cases where remote jobs with only regional hints (e.g., “Remote – Europe”) were incorrectly passing the filter because they were classified as “remote” with no strong negative region signal.
-
-**Root cause**
-
-- The **US‑eligibility** logic relied mainly on positive US markers and a simple remote flag.
-- There were not enough explicit negative checks for non‑US regions (e.g., `Europe`, `EMEA`, `APAC`, `Canada`, explicit country lists).
-- Mixed labels (“US or Europe”) were not being treated separately from “US only”.
-
-**Fix**
-
-- Expanded the location parser to:
-  - detect and tag **regional hints** (Europe/EMEA/APAC/Canada/etc.), and
-  - treat “remote” without any US markers but with clear non‑US region hints as **non‑US‑eligible**.
-- Added a special case for mixed labels:
-  - when a job is “US or non‑US region” and the location string is ambiguous, mark it as **“maybe US”** and keep it in a separate bucket instead of the main US‑only set.
-- Re‑ran the tracker on recent days and verified that clearly non‑US roles no longer appeared in the US‑only filtered snapshots.
-
-This kind of postmortem is used to tighten the heuristics over time while keeping the pipeline simple and deterministic.
-
----
-
-## Future scope (still working on it)
-
-This project is still actively evolving. Planned and in‑progress work includes:
-
-- **Hiring velocity dashboards**
-  - Per‑company and per‑role family view of added/removed jobs over time.
-- **Role mix and seniority trends**
-  - How much of a company’s funnel is junior vs. mid vs. senior, and how it shifts over time.
-- **Time‑to‑close analytics**
-  - More robust analysis of `first_seen` / `last_seen` distributions, including outliers.
-- **Company news/funding overlays**
-  - Join job trends with public company events (funding rounds, layoffs, big launches).
-- **Relevance scoring for “my” profile**
-  - Score roles per company based on skills/stack and hide clearly off‑target roles.
-- **Better diff & trend visualization**
-  - A small UI or notebook layer to explore diffs interactively.
