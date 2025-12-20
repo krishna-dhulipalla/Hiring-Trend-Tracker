@@ -241,14 +241,14 @@ def get_momentum_board(as_of_date: str | None = None, *, lookback_days: int = 7)
     # Lifespan summary (latest computed)
     lifespan = _read_sql(
         """
-        SELECT company_slug, median_days, p25_days, p75_days, pct_close_within_7d
+        SELECT company_slug, median_days, median_open_age_days, p25_days, p75_days, pct_close_within_7d
         FROM company_lifespan_daily
         WHERE date=? AND window_days=180
         """,
         params=[as_of_date],
     )
     if lifespan.empty:
-        lifespan = pd.DataFrame(columns=["company_slug", "median_days", "p25_days", "p75_days", "pct_close_within_7d"])
+        lifespan = pd.DataFrame(columns=["company_slug", "median_days", "median_open_age_days", "p25_days", "p75_days", "pct_close_within_7d"])
 
     df = companies.merge(signals, on="company_slug", how="left").merge(weekly, on="company_slug", how="left").merge(lifespan, on="company_slug", how="left")
 
@@ -565,6 +565,43 @@ def get_company_lifespan(company_slug: str, as_of_date: str, *, window_days: int
         """,
         params=[company_slug, as_of_date, int(window_days)],
     )
+
+
+def compute_median_open_age_days(company_slug: str, as_of_date: str) -> float | None:
+    """
+    Fallback for older DB rows that predate the `median_open_age_days` column being populated.
+    Computes median age (in days) of currently-open roles from `job_lifecycle` as-of the given date.
+    """
+    df = _read_sql(
+        """
+        SELECT first_seen_date
+        FROM job_lifecycle
+        WHERE company_slug=?
+          AND (closed_date IS NULL OR closed_date > ?)
+        """,
+        params=[company_slug, as_of_date],
+    )
+    if df.empty:
+        return None
+
+    as_of = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    ages = []
+    for fs in df["first_seen_date"].tolist():
+        try:
+            first_seen = datetime.strptime(str(fs), "%Y-%m-%d").date()
+        except Exception:
+            continue
+        age = (as_of - first_seen).days + 1
+        if age > 0:
+            ages.append(age)
+    if not ages:
+        return None
+
+    ages.sort()
+    mid = len(ages) // 2
+    if len(ages) % 2 == 1:
+        return float(ages[mid])
+    return float((ages[mid - 1] + ages[mid]) / 2.0)
 
 
 def get_company_lifespan_by_discipline(company_slug: str, as_of_date: str, *, window_days: int = 180) -> pd.DataFrame:

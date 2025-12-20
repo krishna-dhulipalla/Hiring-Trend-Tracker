@@ -41,6 +41,7 @@ class LifespanSummary:
     median_days: Optional[float]
     p25_days: Optional[float]
     p75_days: Optional[float]
+    median_open_age_days: Optional[float]
     pct_close_within_7d: Optional[float]
     pct_open_gt_30d: Optional[float]
     pct_open_gt_60d: Optional[float]
@@ -144,10 +145,11 @@ def sync_job_lifecycle(
             INSERT OR REPLACE INTO company_lifespan_daily (
                 company_slug, date, window_days, closed_roles_count,
                 median_days, p25_days, p75_days,
+                median_open_age_days,
                 pct_close_within_7d, pct_open_gt_30d, pct_open_gt_60d,
                 age_bucket_0_3, age_bucket_4_7, age_bucket_8_14, age_bucket_15_30, age_bucket_30_plus
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 company_slug,
@@ -157,6 +159,7 @@ def sync_job_lifecycle(
                 summary.median_days,
                 summary.p25_days,
                 summary.p75_days,
+                summary.median_open_age_days,
                 summary.pct_close_within_7d,
                 summary.pct_open_gt_30d,
                 summary.pct_open_gt_60d,
@@ -242,6 +245,7 @@ def compute_company_lifespan_summary(
         open_gt_30 = 0
         open_gt_60 = 0
         open_count = 0
+        open_ages: List[float] = []
         for (first_seen,) in open_rows:
             try:
                 fs = datetime.strptime(first_seen, "%Y-%m-%d").date()
@@ -251,6 +255,7 @@ def compute_company_lifespan_summary(
             if age <= 0:
                 continue
             open_count += 1
+            open_ages.append(float(age))
             if age <= 3:
                 age_bucket_0_3 += 1
             elif age <= 7:
@@ -269,12 +274,15 @@ def compute_company_lifespan_summary(
 
         pct_open_gt_30d = (open_gt_30 / open_count) if open_count > 0 else None
         pct_open_gt_60d = (open_gt_60 / open_count) if open_count > 0 else None
+        open_ages.sort()
+        median_open_age_days = _percentile(open_ages, 50) if open_ages else None
 
         return LifespanSummary(
             closed_roles_count=closed_roles_count,
             median_days=median_days,
             p25_days=p25_days,
             p75_days=p75_days,
+            median_open_age_days=median_open_age_days,
             pct_close_within_7d=pct_close_within_7d,
             pct_open_gt_30d=pct_open_gt_30d,
             pct_open_gt_60d=pct_open_gt_60d,
@@ -287,4 +295,3 @@ def compute_company_lifespan_summary(
     finally:
         if close_conn:
             conn.close()
-

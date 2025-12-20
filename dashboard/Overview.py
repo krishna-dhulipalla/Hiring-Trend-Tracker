@@ -127,9 +127,12 @@ else:
 
             median_days = row.get("median_days")
             median_str = f"{median_days:.0f}d" if pd.notna(median_days) else "—"
+            median_open_age = row.get("median_open_age_days")
+            open_age_str = f"{median_open_age:.0f}d" if pd.notna(median_open_age) else "—"
             c3.markdown(
                 f"""
                 **Median lifespan:** {median_str}  
+                **Median age (open):** {open_age_str}  
                 **Post day:** {_weekday_name(row.get('best_post_weekday'))}  
                 **Removal day:** {_weekday_name(row.get('best_remove_weekday'))}
                 """

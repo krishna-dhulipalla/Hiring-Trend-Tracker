@@ -162,10 +162,11 @@ def compute_latest_summaries(window_days: int = 180, lookback_days: int = 7) -> 
                 INSERT OR REPLACE INTO company_lifespan_daily (
                     company_slug, date, window_days, closed_roles_count,
                     median_days, p25_days, p75_days,
+                    median_open_age_days,
                     pct_close_within_7d, pct_open_gt_30d, pct_open_gt_60d,
                     age_bucket_0_3, age_bucket_4_7, age_bucket_8_14, age_bucket_15_30, age_bucket_30_plus
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     slug,
@@ -175,6 +176,7 @@ def compute_latest_summaries(window_days: int = 180, lookback_days: int = 7) -> 
                     summary.median_days,
                     summary.p25_days,
                     summary.p75_days,
+                    summary.median_open_age_days,
                     summary.pct_close_within_7d,
                     summary.pct_open_gt_30d,
                     summary.pct_open_gt_60d,
@@ -231,4 +233,3 @@ if __name__ == "__main__":
 
     # 2) Compute latest lifespan + signals (for dashboard usefulness immediately)
     compute_latest_summaries(window_days=180, lookback_days=7)
-

@@ -257,27 +257,34 @@ def compute_company_signal(company_slug: str, run_date: str, *, lookback_days: i
         open_norm = max(open_now, 1)
         net_ratio = net_7d / open_norm
 
+        # Volatility threshold scales with company size; 2-3 changes can be huge for a small company.
+        min_vol = max(2.0, 0.10 * float(open_norm))
+        vol_threshold = max(min_vol, (0.25 * abs(net_7d)) + 2.0)
+
         state = "Stable"
         if net_7d <= -max(5, int(0.15 * open_norm)) or (removed_7d >= added_7d + 10 and net_7d < 0):
             state = "Freezing"
-        elif volatility >= max(5.0, 0.25 * abs(net_7d) + 3.0) or churn >= max(15, int(0.6 * open_norm)):
+        elif volatility >= vol_threshold or churn >= max(10, int(0.6 * open_norm)):
             state = "Volatile"
         elif net_7d >= max(5, int(0.15 * open_norm)) and slope >= max(3, int(0.05 * open_norm)):
             state = "Accelerating"
         elif net_7d > 0 and slope <= -max(3, int(0.05 * open_norm)):
             state = "Slowing"
-        elif abs(net_7d) <= 2 and churn <= max(5, int(0.2 * open_norm)):
+        elif abs(net_7d) <= 2 and churn <= max(4, int(0.2 * open_norm)):
             state = "Stable"
         else:
             state = "Steady"
 
+        # Label is the user-facing "board bucket". Allow "Booming" even with flat acceleration
+        # when growth is extremely high relative to current open roles.
         label = "Quiet"
-        if state == "Accelerating":
-            label = "Booming"
-        elif state == "Freezing":
+        extreme_growth = (net_ratio >= 0.25) and (net_7d >= max(10, int(0.20 * open_norm)))
+        if state == "Freezing":
             label = "Freezing"
         elif state == "Volatile":
             label = "Volatile"
+        elif state == "Accelerating" or extreme_growth:
+            label = "Booming"
         elif state in ("Steady", "Stable"):
             label = "Stable"
         else:

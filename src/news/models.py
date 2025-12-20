@@ -11,6 +11,11 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+
+    def _ensure_column(table: str, column: str, ddl: str) -> None:
+        cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+        if column not in cols:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
     
     # Raw News Table
     c.execute('''
@@ -137,6 +142,7 @@ def init_db():
             median_days REAL,
             p25_days REAL,
             p75_days REAL,
+            median_open_age_days REAL,
             pct_close_within_7d REAL,
             pct_open_gt_30d REAL,
             pct_open_gt_60d REAL,
@@ -148,6 +154,8 @@ def init_db():
             PRIMARY KEY (company_slug, date, window_days)
         )
     ''')
+    # Migration for existing DBs
+    _ensure_column("company_lifespan_daily", "median_open_age_days", "median_open_age_days REAL")
 
     # Analytics: Momentum & Timing Signals
     c.execute('''

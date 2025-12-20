@@ -191,11 +191,18 @@ st.subheader("Lifespan (Role Durability)")
 life = da.get_company_lifespan(selected_slug, as_of_date, window_days=180)
 life_row = life.iloc[0].to_dict() if not life.empty else {}
 
+median_open_age = life_row.get("median_open_age_days")
+if median_open_age is None and life_row:
+    # Fallback: older DB rows may have NULL until the next scrape/backfill.
+    median_open_age = da.compute_median_open_age_days(selected_slug, as_of_date)
+
 lc1, lc2, lc3, lc4 = st.columns(4)
 lc1.metric("Median days open", _safe_int(life_row.get("median_days"), 0) if life_row.get("median_days") is not None else "—")
-lc2.metric("P25 / P75", f"{_safe_int(life_row.get('p25_days'), 0)} / {_safe_int(life_row.get('p75_days'), 0)}" if life_row else "—")
+lc2.metric("Median age (open roles)", _safe_int(median_open_age, 0) if median_open_age is not None else "—")
 lc3.metric("% close ≤7d", f"{(float(life_row.get('pct_close_within_7d') or 0)*100):.0f}%" if life_row else "—")
 lc4.metric("% open >30d", f"{(float(life_row.get('pct_open_gt_30d') or 0)*100):.0f}%" if life_row else "—")
+
+st.caption(f"P25/P75 lifespan: {_safe_int(life_row.get('p25_days'), 0)} / {_safe_int(life_row.get('p75_days'), 0)} days" if life_row else "")
 
 bucket_cols = [
     ("0–3d", "age_bucket_0_3"),
@@ -238,7 +245,12 @@ st.subheader("Timing Intelligence")
 t1, t2, t3 = st.columns([2, 2, 3])
 t1.metric("Best posting day", _weekday_name(latest_sig.get("best_post_weekday")))
 t2.metric("Best removal day", _weekday_name(latest_sig.get("best_remove_weekday")))
-t3.metric("Apply window hint", latest_sig.get("timing_hint") or "—")
+hint = (latest_sig.get("timing_hint") or "—").strip()
+primary, sep, rest = hint.partition(";")
+primary = (primary or hint).strip()
+t3.metric("Apply window hint", primary)
+if sep and rest.strip():
+    t3.caption(rest.strip())
 
 st.caption(latest_sig.get("mover_reason") or "")
 
