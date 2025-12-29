@@ -1,6 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM ---------- HIDE CONSOLE ----------
+if /i not "%~1"=="--hidden" (
+  powershell -NoProfile -WindowStyle Hidden -Command ^
+    "Start-Process cmd.exe -WindowStyle Hidden -ArgumentList '/c','\"%~f0\" --hidden' -WorkingDirectory '%~dp0'"
+  exit /b
+)
+REM ----------------------------------
+
 REM Run this from Windows Task Scheduler (daily). Writes logs to logs\scheduler.
 
 REM Ensure UTF-8 so redirected logs don't crash on non-ASCII output.
