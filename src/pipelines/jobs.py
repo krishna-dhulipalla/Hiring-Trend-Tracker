@@ -82,7 +82,32 @@ def run(run_timestamp, companies):
             raw_path = f"data/raw/{ats}/{slug}/{run_timestamp}.json"
             save_json(raw_jobs, raw_path)
             
-            filtered_path = f"data/filtered/{ats}/{slug}/{run_timestamp}.json"
+            # Guard: if current filtered is zero but previous snapshot had jobs, skip diff/analytics to avoid false removals.
+            snapshot_dir = f"data/filtered/{ats}/{slug}"
+            prev_count = 0
+            prev_path = diff.get_previous_snapshot_path(snapshot_dir, run_timestamp)
+            if prev_path and os.path.exists(prev_path):
+                try:
+                    with open(prev_path, 'r', encoding='utf-8') as f:
+                        prev_data = json.load(f)
+                        if isinstance(prev_data, list):
+                            prev_count = len(prev_data)
+                except Exception:
+                    prev_count = 0
+
+            if len(filtered_jobs) <= 0 and prev_count > 0:
+                logger.warning(
+                    f"{slug}: filtered=0 but previous={prev_count}. "
+                    "Skipping filtered snapshot + diff to avoid false removals."
+                )
+                os.makedirs(snapshot_dir, exist_ok=True)
+                skip_path = os.path.join(snapshot_dir, f"{run_timestamp}_SKIPPED.txt")
+                with open(skip_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Skipped diff/analytics: current filtered=0, previous={prev_count}\n")
+                stats.append(f"{slug}: SKIPPED (0 filtered, previous {prev_count})")
+                continue
+
+            filtered_path = f"{snapshot_dir}/{run_timestamp}.json"
             save_json(filtered_jobs, filtered_path)
             
             msg = f"{slug}: {len(raw_jobs)} raw, {len(filtered_jobs)} filtered"
