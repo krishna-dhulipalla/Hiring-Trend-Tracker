@@ -42,6 +42,9 @@ def save_json(data, filepath):
 def run(run_timestamp, companies):
     logger = logging.getLogger("jobs")
     logger.info("--- Starting Job Pipeline ---")
+    save_raw = os.getenv("SAVE_RAW_SNAPSHOTS", "false").strip().lower() in ("1", "true", "yes", "y")
+    if not save_raw:
+        logger.info("Raw snapshot saving disabled (set SAVE_RAW_SNAPSHOTS=true to enable).")
     
     total_raw = 0
     total_filtered = 0
@@ -79,8 +82,9 @@ def run(run_timestamp, companies):
             ]
 
             # Write files
-            raw_path = f"data/raw/{ats}/{slug}/{run_timestamp}.json"
-            save_json(raw_jobs, raw_path)
+            if save_raw:
+                raw_path = f"data/raw/{ats}/{slug}/{run_timestamp}.json"
+                save_json(raw_jobs, raw_path)
             
             # Guard: if current filtered is zero but previous snapshot had jobs, skip diff/analytics to avoid false removals.
             snapshot_dir = f"data/filtered/{ats}/{slug}"

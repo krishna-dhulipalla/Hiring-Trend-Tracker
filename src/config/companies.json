@@ -230,6 +230,7 @@
     "ats": "amazon",
     "ticker": "AMZN",
     "config": {
+      "max_pages": 150,
       "params": {
         "result_limit": 100,
         "offset": 0,

@@ -15,6 +15,10 @@ def fetch_jobs(config, max_pages=None):
     if "offset" not in base_params:
         base_params["offset"] = 0
         
+    max_pages = max_pages or config.get("max_pages")
+    max_jobs = config.get("max_jobs")
+    safe_max_pages = config.get("safe_max_pages", None)
+
     offset = base_params["offset"]
     limit = base_params["result_limit"]
     
@@ -23,6 +27,11 @@ def fetch_jobs(config, max_pages=None):
     url = "https://www.amazon.jobs/en/search.json"
     
     SAFE_MAX_PAGES = 2000
+    if safe_max_pages is not None:
+        try:
+            SAFE_MAX_PAGES = int(safe_max_pages)
+        except Exception:
+            pass
     seen_ids = set()
     seen_page_signatures = set()
     
@@ -126,6 +135,10 @@ def fetch_jobs(config, max_pages=None):
                 
             if len(jobs_list) < limit:
                 print(f"Returned {len(jobs_list)} items < limit {limit}. Stopping.")
+                break
+
+            if max_jobs and len(all_jobs) >= int(max_jobs):
+                print(f"Reached max_jobs {max_jobs}. Stopping.")
                 break
             
             time.sleep(random.uniform(1, 2))
