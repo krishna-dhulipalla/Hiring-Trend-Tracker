@@ -134,7 +134,7 @@ if not df_page.empty:
         column_config={
             "match_label": st.column_config.TextColumn("Fit", help="Strong/Good/Okay/Weak"),
             "match_score": st.column_config.ProgressColumn("Score", format="%d", min_value=-50, max_value=50),
-            "url": st.column_config.LinkColumn("Apply", display_text="Open"),
+            "url": st.column_config.LinkColumn("Link", display_text="Open 🔗"),
             "title": "Role",
             "_company": "Company",
             "_date_added": "Added",

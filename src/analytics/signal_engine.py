@@ -321,10 +321,28 @@ def compute_company_signal(company_slug: str, run_date: str, *, lookback_days: i
 
         # Momentum score (0-100, simple + explainable)
         score = 50.0
-        score += 60.0 * math.tanh(net_ratio * 3.0)  # net vs open_now
-        score += 10.0 * math.tanh((added_7d / max(lookback_days, 1)) / 10.0)
-        score -= 10.0 * math.tanh((removed_7d / max(lookback_days, 1)) / 10.0)
+        
+        # 1. Growth (Net Ratio) with inertia
+        # Add simpler inertia: denominator + 10. This makes 1 net change on 0 open jobs = 1/10 = 0.1, not 1/1 = 1.0.
+        # This prevents small companies from jumping to max score instantly.
+        net_ratio_dampened = net_7d / (open_norm + 10.0) 
+        score += 60.0 * math.tanh(net_ratio_dampened * 5.0) 
+
+        # 2. Volume Bonus (Logarithmic)
+        # Reward raw scale of hiring. 10 adds is good, 100 adds is better.
+        # log10(1) = 0, log10(10) = 1, log10(100) = 2.
+        # Max bonus around +15 for huge hiring.
+        if added_7d > 0:
+            score += 5.0 * math.log10(added_7d + 1)
+
+        # 3. Penalties
+        # Normalize removals against the same "inertia" denominator
+        rem_ratio = removed_7d / (open_norm + 10.0)
+        score -= 20.0 * math.tanh(rem_ratio * 3.0)
+        
+        # Volatility penalty
         score -= 10.0 * math.tanh(volatility / 10.0)
+
         score = _clamp(score, 0.0, 100.0)
 
         return CompanySignal(
