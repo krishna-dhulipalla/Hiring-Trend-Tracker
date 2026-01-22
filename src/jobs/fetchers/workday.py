@@ -49,7 +49,7 @@ class WorkdayAgent:
             # Flattened structure
             title = raw_job.get("title")
             external_path = raw_job.get("externalPath", "")
-            job_url = f"https://{host}/en-US/{tenant}/{site_slug}{external_path}"
+            job_url = f"https://{host}/en-US/{site_slug}{external_path}"
             location_raw = raw_job.get("locationsText", "")
             posted_at_raw = raw_job.get("postedOn")
 
@@ -63,7 +63,7 @@ class WorkdayAgent:
             title = job_info.get("title")
             external_path = job_info.get(
                 "externalPath") or raw_job.get("externalPath", "")
-            job_url = f"https://{host}/en-US/{tenant}/{site_slug}{external_path}"
+            job_url = f"https://{host}/en-US/{site_slug}{external_path}"
             location_raw = job_info.get("location", "")
 
             additional_locations = job_info.get("additionalLocations", [])

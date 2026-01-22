@@ -196,6 +196,7 @@
     "ticker": null
   },
   { "slug": "cognition", "name": "Cognition", "ats": "ashby", "ticker": null },
+  { "slug": "cobot", "name": "Cobot", "ats": "ashby", "ticker": null },
   { "slug": "scribd", "name": "Scribd", "ats": "ashby", "ticker": null },
   { "slug": "unlearn", "name": "Unlearn", "ats": "ashby", "ticker": null },
   { "slug": "roboflow", "name": "Roboflow", "ats": "ashby", "ticker": null },
